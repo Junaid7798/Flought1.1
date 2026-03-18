@@ -37,6 +37,9 @@ export interface UserSettings {
 	sync_provider: string | null;
 	sync_connected: boolean;
 	last_synced_at: string | null;
+	sidebar_width: number;
+	pinned_thought_ids: string[];
+	font_size: number;
 }
 
 export interface Thought {
@@ -87,6 +90,21 @@ class FloughtDB extends Dexie {
 			userSettings:'id',
 			thoughts:    'id, library_id, meta_state, topic, created_at, updated_at, is_deleted',
 			edges:       'id, library_id, source_id, target_id, is_deleted',
+		});
+
+		// v2 — adds font_size + sidebar_width to userSettings (no new indexes needed)
+		this.version(2).stores({
+			libraries:   'id, name, created_at, is_deleted',
+			userProfile: 'id',
+			userSettings:'id',
+			thoughts:    'id, library_id, meta_state, topic, created_at, updated_at, is_deleted',
+			edges:       'id, library_id, source_id, target_id, is_deleted',
+		}).upgrade((tx) => {
+			return tx.table('userSettings').toCollection().modify((s) => {
+				if (s.font_size === undefined)    s.font_size    = 16;
+				if (s.sidebar_width === undefined) s.sidebar_width = 220;
+				if (s.pinned_thought_ids === undefined) s.pinned_thought_ids = [];
+			});
 		});
 	}
 }
@@ -186,6 +204,18 @@ export async function createEdge(
 export async function softDeleteEdge(id: string): Promise<void> {
 	await db.edges.update(id, { is_deleted: true });
 	eventBus.emit({ type: 'edge.updated', payload: { id } });
+}
+
+/** Lightweight liveQuery for thermal pill widget — fetches id+title+meta_state only. */
+export function getThoughtStates(libraryId: string) {
+	return liveQuery(() =>
+		db.thoughts
+			.where('library_id')
+			.equals(libraryId)
+			.filter((t) => !t.is_deleted)
+			.toArray()
+			.then((ts) => ts.map((t) => ({ id: t.id, title: t.title, meta_state: t.meta_state })))
+	);
 }
 
 export function getEdgesByLibrary(libraryId: string) {
@@ -315,6 +345,9 @@ export async function initUserProfile(
 		sync_provider: null,
 		sync_connected: false,
 		last_synced_at: null,
+		sidebar_width: 220,
+		pinned_thought_ids: [],
+		font_size: 16,
 	});
 }
 

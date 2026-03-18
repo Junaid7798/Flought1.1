@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { fly } from 'svelte/transition';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
 	import {
 		getThoughtsByLibrary,
@@ -181,4 +183,30 @@
 	});
 </script>
 
-{@render children()}
+<!-- Route transition wrapper.
+     display:grid + grid-area:1/1 stacks outgoing and incoming pages
+     in the same grid cell during the 250ms crossfade — no overlap jump. -->
+<div class="route-shell">
+	{#key $page.url.pathname}
+		<div
+			class="route-view"
+			in:fly={{ y: 20, duration: 250, easing: t => t < 0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2 }}
+		>
+			{@render children()}
+		</div>
+	{/key}
+</div>
+
+<style>
+	/* Grid shell: old + new views occupy the same cell during transition */
+	.route-shell {
+		display: grid;
+		width: 100%;
+		height: 100%;
+	}
+
+	.route-view {
+		grid-area: 1 / 1;
+		display: contents;
+	}
+</style>

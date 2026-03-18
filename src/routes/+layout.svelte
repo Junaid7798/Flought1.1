@@ -9,6 +9,7 @@
 	import MobileDock from '../components/layout/MobileDock.svelte';
 	import SparkInput from '../components/capture/SparkInput.svelte';
 	import CommandPalette from '../components/search/CommandPalette.svelte';
+	import ToastManager from '../components/layout/ToastManager.svelte';
 
 	let { children } = $props();
 
@@ -97,6 +98,9 @@
 
 	<!-- Command palette (portal-like, fixed overlay) -->
 	<CommandPalette libraryId={uiStore.activeLibraryId} />
+
+	<!-- Ghost toast stack -->
+	<ToastManager />
 {/if}
 
 <style>

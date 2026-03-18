@@ -5,10 +5,19 @@
 	import { markdown } from '@codemirror/lang-markdown';
 	import { defaultKeymap, historyKeymap } from '@codemirror/commands';
 	import { history } from '@codemirror/commands';
-	import { updateThought, rebuildEdgesForThought, type Thought } from '$lib/db';
+	import {
+		updateThought, rebuildEdgesForThought, getThoughtStates,
+		type Thought,
+	} from '$lib/db';
 	import { extractLinks } from '$lib/linkParser';
 	import { hideFrontmatterField } from '$lib/hideFrontmatter';
+	import { checkboxField, checkboxTheme } from '$lib/checkboxWidget';
+	import {
+		thermalPillField, thermalPillTheme, updateThoughtStates,
+		type ThoughtStateMap,
+	} from '$lib/thermalPillWidget';
 	import { ANIMATION_CONFIG } from '$lib/config';
+	import SlashMenu, { type SlashItem } from './SlashMenu.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -18,16 +27,30 @@
 	}
 	let { thought, searchWorker }: Props = $props();
 
-	// ── DOM ref ───────────────────────────────────────────────────────────────
+	// ── DOM refs ──────────────────────────────────────────────────────────────
 
 	let containerEl = $state<HTMLDivElement | null>(null);
 	let view: EditorView | null = null;
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+	// ── Slash command state ───────────────────────────────────────────────────
+
+	let slashOpen = $state(false);
+	let slashX = $state(0);
+	let slashY = $state(0);
+	let slashFrom = -1;
+
+	// ── Typing rhythm bar ─────────────────────────────────────────────────────
+
+	let isTyping = $state(false);
+	let typingFadeTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// ── Live thought-state subscription ──────────────────────────────────────
+
+	let stateMapSub: { unsubscribe(): void } | null = null;
+
 	// ── CodeMirror theme ──────────────────────────────────────────────────────
 
-	// Reads CSS variables at mount time so colours stay in sync with app.css.
-	// The theme is a static snapshot — no dynamic update needed.
 	const midnightTheme = EditorView.theme(
 		{
 			'&': {
@@ -48,41 +71,16 @@
 				padding: '2rem 1.5rem',
 				caretColor: 'var(--color-brand)',
 			},
-			'.cm-line': {
-				padding: '0',
-			},
-			'&.cm-focused': {
-				outline: 'none',
-			},
-			'&.cm-focused .cm-cursor': {
-				borderLeftColor: 'var(--color-brand)',
-			},
-			'.cm-selectionBackground, ::selection': {
-				backgroundColor: 'var(--bg-hover)',
-			},
-			'.cm-activeLine': {
-				backgroundColor: 'transparent',
-			},
-			// Markdown styling
-			'.cm-header': {
-				color: 'var(--text-primary)',
-				fontWeight: '700',
-			},
-			'.cm-strong': {
-				color: 'var(--text-primary)',
-				fontWeight: '700',
-			},
-			'.cm-em': {
-				color: 'var(--text-secondary)',
-				fontStyle: 'italic',
-			},
-			'.cm-link': {
-				color: 'var(--color-brand)',
-				textDecoration: 'none',
-			},
-			'.cm-url': {
-				color: 'var(--text-muted)',
-			},
+			'.cm-line': { padding: '0' },
+			'&.cm-focused': { outline: 'none' },
+			'&.cm-focused .cm-cursor': { borderLeftColor: 'var(--color-brand)' },
+			'.cm-selectionBackground, ::selection': { backgroundColor: 'var(--bg-hover)' },
+			'.cm-activeLine': { backgroundColor: 'transparent' },
+			'.cm-header':  { color: 'var(--text-primary)', fontWeight: '700' },
+			'.cm-strong':  { color: 'var(--text-primary)', fontWeight: '700' },
+			'.cm-em':      { color: 'var(--text-secondary)', fontStyle: 'italic' },
+			'.cm-link':    { color: 'var(--color-brand)', textDecoration: 'none' },
+			'.cm-url':     { color: 'var(--text-muted)' },
 			'.cm-monospace, .cm-code': {
 				fontFamily: 'monospace',
 				color: 'var(--text-secondary)',
@@ -90,17 +88,13 @@
 				borderRadius: '3px',
 				padding: '0 0.25em',
 			},
-			// Gutters / scrollbar
-			'.cm-gutters': {
-				display: 'none',
-			},
+			'.cm-gutters': { display: 'none' },
 		},
 		{ dark: true }
 	);
 
 	// ── Flush helpers ─────────────────────────────────────────────────────────
 
-	// Save content to DB (debounced on input, immediate on blur/unmount)
 	async function flushContent(content: string) {
 		await updateThought(thought.id, { content });
 		searchWorker?.postMessage({
@@ -115,10 +109,49 @@
 		await rebuildEdgesForThought(thought.id, links);
 	}
 
+	// ── Slash command helpers ─────────────────────────────────────────────────
+
+	function openSlashMenu(pos: number) {
+		if (!view || !containerEl) return;
+		const coords = view.coordsAtPos(pos);
+		if (!coords) return;
+		const rect = containerEl.getBoundingClientRect();
+		slashX = coords.left - rect.left;
+		slashY = coords.bottom - rect.top + 4;
+		slashFrom = pos;
+		slashOpen = true;
+	}
+
+	function handleSlashSelect(item: SlashItem) {
+		slashOpen = false;
+		if (!view || slashFrom < 0) return;
+		view.dispatch({
+			changes: { from: slashFrom, to: slashFrom + 1, insert: item.syntax },
+			selection: { anchor: slashFrom + item.syntax.length },
+		});
+		view.focus();
+	}
+
+	function handleSlashClose() {
+		slashOpen = false;
+		view?.focus();
+	}
+
 	// ── Mount / destroy ───────────────────────────────────────────────────────
 
 	onMount(() => {
 		if (!containerEl) return;
+
+		// Subscribe to live thought states for thermal pill decorations
+		stateMapSub = getThoughtStates(thought.library_id).subscribe((states) => {
+			if (!view) return;
+			const map: ThoughtStateMap = new Map(
+				states
+					.filter((s) => s.id !== thought.id)
+					.map((s) => [s.title.toLowerCase(), s.meta_state])
+			);
+			view.dispatch({ effects: [updateThoughtStates.of(map)] });
+		});
 
 		const startState = EditorState.create({
 			doc: thought.content,
@@ -127,11 +160,33 @@
 				keymap.of([...defaultKeymap, ...historyKeymap]),
 				markdown(),
 				hideFrontmatterField,
+				checkboxField,
+				checkboxTheme,
+				thermalPillField,
+				thermalPillTheme,
 				midnightTheme,
 				EditorView.lineWrapping,
 				EditorView.updateListener.of((update) => {
 					if (!update.docChanged) return;
 					const content = update.state.doc.toString();
+
+					// Typing rhythm bar — light up on any keystroke, fade after 1.2s idle
+					isTyping = true;
+					if (typingFadeTimer) clearTimeout(typingFadeTimer);
+					typingFadeTimer = setTimeout(() => { isTyping = false; }, 1200);
+
+					// Slash command detection — '/' at line-start or after whitespace only
+					for (const tr of update.transactions) {
+						tr.changes.iterChanges((_fromA, _toA, _fromB, toB, inserted) => {
+							if (inserted.toString() === '/') {
+								const lineStart = update.state.doc.lineAt(toB - 1).from;
+								const prefix = update.state.doc.sliceString(lineStart, toB - 1);
+								if (prefix.trim() === '') {
+									openSlashMenu(toB - 1);
+								}
+							}
+						});
+					}
 
 					// Debounced DB save + search index update
 					if (debounceTimer) clearTimeout(debounceTimer);
@@ -141,7 +196,6 @@
 				}),
 				EditorView.domEventHandlers({
 					blur: () => {
-						// Cancel pending debounce; flush immediately on blur
 						if (debounceTimer) {
 							clearTimeout(debounceTimer);
 							debounceTimer = null;
@@ -159,13 +213,16 @@
 	});
 
 	onDestroy(() => {
-		// Cancel pending debounce; flush immediately on unmount
 		if (debounceTimer) {
 			clearTimeout(debounceTimer);
 			debounceTimer = null;
 		}
+		if (typingFadeTimer) {
+			clearTimeout(typingFadeTimer);
+			typingFadeTimer = null;
+		}
+		stateMapSub?.unsubscribe();
 		const content = view?.state.doc.toString() ?? '';
-		// Fire-and-forget — component is unmounting
 		flushContent(content);
 		flushEdges(content);
 		view?.destroy();
@@ -173,12 +230,51 @@
 	});
 </script>
 
-<div class="editor-wrap" bind:this={containerEl}></div>
+<div class="editor-shell">
+	<div class="editor-wrap" bind:this={containerEl}></div>
+
+	<!-- Typing rhythm bar: 2px cyan line, grows in on keypress, fades after idle -->
+	<div class="rhythm-bar" class:active={isTyping}></div>
+</div>
+
+{#if slashOpen}
+	<SlashMenu
+		x={slashX}
+		y={slashY}
+		onselect={handleSlashSelect}
+		onclose={handleSlashClose}
+	/>
+{/if}
 
 <style>
-	.editor-wrap {
+	.editor-shell {
+		display: flex;
+		flex-direction: column;
 		height: 100%;
+		position: relative;
+	}
+
+	.editor-wrap {
+		flex: 1;
+		min-height: 0;
 		overflow: hidden;
 		background-color: var(--bg-deep);
+	}
+
+	/* Typing rhythm bar — Rule 9 compliant: transform + opacity only */
+	.rhythm-bar {
+		height: 2px;
+		flex-shrink: 0;
+		background: var(--color-brand);
+		opacity: 0;
+		transform: scaleX(0);
+		transform-origin: left;
+		transition: opacity 400ms, transform 400ms;
+	}
+
+	.rhythm-bar.active {
+		opacity: 1;
+		transform: scaleX(1);
+		transition: opacity 80ms, transform 80ms;
 	}
 </style>

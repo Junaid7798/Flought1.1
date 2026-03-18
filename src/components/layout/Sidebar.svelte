@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { $t as t } from '$lib/i18n';
 	import { PIPELINE_STATES } from '$lib/config';
 	import {
@@ -7,6 +8,7 @@
 		getLibraries,
 		getThoughtsByLibrary,
 		getUserSettings,
+		updateUserSettings,
 		type Library,
 		type Thought,
 		type UserSettings,
@@ -27,17 +29,28 @@
 	let libraries = $state<Library[]>([]);
 	let thoughts = $state<Thought[]>([]);
 	let settings = $state<UserSettings | null>(null);
+	let pinnedIds = $state<Set<string>>(new Set());
+
+	let libSub: { unsubscribe(): void } | null = null;
+	let thoughtSub: { unsubscribe(): void } | null = null;
 
 	onMount(() => {
-		const libSub = getLibraries().subscribe((v) => { libraries = v; });
-		const thoughtSub = getThoughtsByLibrary(activeLibraryId).subscribe((v) => { thoughts = v; });
+		libSub = getLibraries().subscribe((v) => { libraries = v; });
+		thoughtSub = getThoughtsByLibrary(activeLibraryId).subscribe((v) => { thoughts = v; });
 
-		getUserSettings().then((s) => { if (s) settings = s; });
+		getUserSettings().then((s) => {
+			if (!s) return;
+			settings = s;
+			pinnedIds = new Set(s.pinned_thought_ids ?? []);
+			if (s.sidebar_width && s.sidebar_width !== uiStore.sidebarWidth) {
+				uiStore.sidebarWidth = s.sidebar_width;
+			}
+		});
+	});
 
-		return () => {
-			libSub.unsubscribe();
-			thoughtSub.unsubscribe();
-		};
+	onDestroy(() => {
+		libSub?.unsubscribe();
+		thoughtSub?.unsubscribe();
 	});
 
 	// ── Derived ───────────────────────────────────────────────────────────────
@@ -49,13 +62,27 @@
 	);
 
 	const stageCounts = $derived(
-		PIPELINE_STATES.map((s) => thoughts.filter((t) => t.meta_state === s.id).length)
+		PIPELINE_STATES.map((s) => thoughts.filter((th) => th.meta_state === s.id).length)
 	);
 
 	const topics = $derived(
-		[...new Set(thoughts.map((t) => t.topic).filter(Boolean))].sort()
+		[...new Set(thoughts.map((th) => th.topic).filter(Boolean))].sort()
 	);
 
+	// Pinned thoughts — sorted by updated_at desc
+	const pinnedThoughts = $derived(
+		thoughts
+			.filter((th) => pinnedIds.has(th.id))
+			.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+	);
+
+	// Recent thoughts — last 5 updated, excluding pinned
+	const recentThoughts = $derived(
+		thoughts
+			.filter((th) => !pinnedIds.has(th.id))
+			.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+			.slice(0, 5)
+	);
 
 	// ── Library switcher ──────────────────────────────────────────────────────
 
@@ -98,10 +125,23 @@
 		activeStage = activeStage === id ? null : id;
 	}
 
-	// ── Capture ───────────────────────────────────────────────────────────────
+	// ── Collapsible sections ──────────────────────────────────────────────────
 
-	function openCapture() {
-		uiStore.activeView = 'editor';
+	let pinnedOpen = $state(true);
+	let recentOpen = $state(true);
+	let topicsOpen = $state(true);
+
+	// ── Pinning ───────────────────────────────────────────────────────────────
+
+	async function togglePin(id: string) {
+		const next = new Set(pinnedIds);
+		if (next.has(id)) {
+			next.delete(id);
+		} else {
+			next.add(id);
+		}
+		pinnedIds = next;
+		await updateUserSettings({ pinned_thought_ids: [...next] });
 	}
 
 	// ── Topic colour cycling ──────────────────────────────────────────────────
@@ -116,14 +156,63 @@
 	function topicColour(index: number): string {
 		return TOPIC_COLOURS[index % TOPIC_COLOURS.length];
 	}
+
+	// ── Capture ───────────────────────────────────────────────────────────────
+
+	function openCapture() {
+		uiStore.activeView = 'editor';
+	}
+
+	// ── Resize drag ──────────────────────────────────────────────────────────
+
+	const MIN_WIDTH = 200;
+	const MAX_WIDTH = 400;
+
+	let resizing = $state(false);
+	let saveWidthTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function handleResizeStart(e: MouseEvent) {
+		e.preventDefault();
+		resizing = true;
+
+		function onMove(ev: MouseEvent) {
+			const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, ev.clientX));
+			uiStore.sidebarWidth = newWidth;
+		}
+
+		function onUp() {
+			resizing = false;
+			window.removeEventListener('mousemove', onMove);
+			window.removeEventListener('mouseup', onUp);
+			// Debounce the DB write — only persist after dragging stops
+			if (saveWidthTimer) clearTimeout(saveWidthTimer);
+			saveWidthTimer = setTimeout(() => {
+				updateUserSettings({ sidebar_width: uiStore.sidebarWidth });
+			}, 400);
+		}
+
+		window.addEventListener('mousemove', onMove);
+		window.addEventListener('mouseup', onUp);
+	}
+
 </script>
 
 <nav class="sidebar" aria-label="Sidebar">
 
-	<!-- ── Brand ──────────────────────────────────────────────────────────── -->
+	<!-- ── Brand + collapse toggle ─────────────────────────────────────────── -->
 	<div class="brand">
-		<span class="brand-name">Flought</span>
-		<span class="brand-tag">{t('brand.tagline')}</span>
+		<div class="brand-text">
+			<span class="brand-name">Flought</span>
+			<span class="brand-tag">{t('brand.tagline')}</span>
+		</div>
+		<button
+			class="collapse-btn"
+			onclick={() => { uiStore.sidebarCollapsed = !uiStore.sidebarCollapsed; }}
+			aria-label={uiStore.sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+			type="button"
+		>
+			<span class="collapse-chevron" class:flipped={uiStore.sidebarCollapsed}>‹</span>
+		</button>
 	</div>
 
 	<!-- ── Library Switcher ───────────────────────────────────────────────── -->
@@ -183,16 +272,79 @@
 		{/each}
 	</div>
 
+	<!-- ── Pinned Thoughts ─────────────────────────────────────────────────── -->
+	{#if pinnedThoughts.length > 0}
+		<div class="section">
+			<button class="section-header" onclick={() => (pinnedOpen = !pinnedOpen)} type="button">
+				<span class="section-label">Pinned</span>
+				<span class="section-chevron" class:open={pinnedOpen}>▾</span>
+			</button>
+			<div class="accordion-body" class:visible={pinnedOpen}>
+				{#each pinnedThoughts as thought}
+					<div class="thought-row">
+						<button
+							class="thought-link"
+							onclick={() => goto(`/thought/${thought.id}`)}
+							type="button"
+						>
+							{thought.title || t('search.untitled')}
+						</button>
+						<button
+							class="pin-btn pinned"
+							onclick={() => togglePin(thought.id)}
+							aria-label="Unpin"
+							type="button"
+						>⊛</button>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
+	<!-- ── Recent Thoughts ────────────────────────────────────────────────── -->
+	{#if recentThoughts.length > 0}
+		<div class="section">
+			<button class="section-header" onclick={() => (recentOpen = !recentOpen)} type="button">
+				<span class="section-label">Recent</span>
+				<span class="section-chevron" class:open={recentOpen}>▾</span>
+			</button>
+			<div class="accordion-body" class:visible={recentOpen}>
+				{#each recentThoughts as thought}
+					<div class="thought-row">
+						<button
+							class="thought-link"
+							onclick={() => goto(`/thought/${thought.id}`)}
+							type="button"
+						>
+							{thought.title || t('search.untitled')}
+						</button>
+						<button
+							class="pin-btn"
+							onclick={() => togglePin(thought.id)}
+							aria-label="Pin"
+							type="button"
+						>⊙</button>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
 	<!-- ── Topics ─────────────────────────────────────────────────────────── -->
 	{#if topics.length > 0}
 		<div class="section">
-			<p class="section-label">{t('topic.plural')}</p>
-			{#each topics as topic, i}
-				<div class="topic-row">
-					<span class="topic-dot" style="background: {topicColour(i)}"></span>
-					<span class="topic-name">{topic}</span>
-				</div>
-			{/each}
+			<button class="section-header" onclick={() => (topicsOpen = !topicsOpen)} type="button">
+				<span class="section-label">{t('topic.plural')}</span>
+				<span class="section-chevron" class:open={topicsOpen}>▾</span>
+			</button>
+			<div class="accordion-body" class:visible={topicsOpen}>
+				{#each topics as topic, i}
+					<div class="topic-row">
+						<span class="topic-dot" style="background: {topicColour(i)}"></span>
+						<span class="topic-name">{topic}</span>
+					</div>
+				{/each}
+			</div>
 		</div>
 	{/if}
 
@@ -212,24 +364,53 @@
 
 </nav>
 
+<!-- Resize handle — positioned at live sidebar width via inline style -->
+<button
+	class="resize-handle"
+	class:active={resizing}
+	aria-label="Resize sidebar"
+	style="left: {uiStore.sidebarWidth - 3}px"
+	onmousedown={handleResizeStart}
+	type="button"
+></button>
+
 <style>
 	.sidebar {
 		display: flex;
 		flex-direction: column;
 		height: 100dvh;
+		/* Glassmorphism — desktop only per FIX-20 (backdrop-filter kills Android fps) */
 		background-color: var(--bg-panel);
 		border-right: 1px solid var(--border);
 		overflow-y: auto;
 		overflow-x: hidden;
 		padding-bottom: env(safe-area-inset-bottom);
+		position: relative;
+	}
+
+	@media (min-width: 768px) {
+		.sidebar {
+			background-color: transparent;
+			background: var(--bg-panel);
+			opacity: 0.92;
+			backdrop-filter: blur(24px);
+			-webkit-backdrop-filter: blur(24px);
+		}
 	}
 
 	/* ── Brand ──────────────────────────────────────────────────────────── */
 
 	.brand {
 		display: flex;
-		flex-direction: column;
+		align-items: center;
+		justify-content: space-between;
 		padding: 1.25rem 1rem 0.75rem;
+		gap: 0.5rem;
+	}
+
+	.brand-text {
+		display: flex;
+		flex-direction: column;
 		gap: 0.125rem;
 	}
 
@@ -243,6 +424,37 @@
 	.brand-tag {
 		font-size: 0.6875rem;
 		color: var(--text-muted);
+	}
+
+	.collapse-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		background: none;
+		border: none;
+		cursor: pointer;
+		border-radius: 6px;
+		color: var(--text-muted);
+		transition: background 120ms, color 120ms;
+		flex-shrink: 0;
+	}
+
+	.collapse-btn:hover {
+		background: var(--bg-hover);
+		color: var(--text-secondary);
+	}
+
+	.collapse-chevron {
+		font-size: 1rem;
+		display: block;
+		transition: transform 200ms;
+		transform: rotate(0deg);
+	}
+
+	.collapse-chevron.flipped {
+		transform: rotate(180deg);
 	}
 
 	/* ── Sections ───────────────────────────────────────────────────────── */
@@ -260,6 +472,52 @@
 		color: var(--text-muted);
 		padding: 0.5rem 1rem 0.375rem;
 		margin: 0;
+	}
+
+	/* Collapsible section header (Pipeline uses plain label; others use button) */
+	.section-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 0;
+		font-family: inherit;
+	}
+
+	.section-chevron {
+		font-size: 0.625rem;
+		color: var(--text-muted);
+		padding-right: 1rem;
+		transition: transform 150ms;
+		transform: rotate(-90deg);
+	}
+
+	.section-chevron.open {
+		transform: rotate(0deg);
+	}
+
+	/* Accordion body — Rule 9: opacity + translateY ONLY. No height animation. */
+	.accordion-body {
+		display: none;
+	}
+
+	.accordion-body.visible {
+		display: block;
+		animation: accordionIn 150ms ease forwards;
+	}
+
+	@keyframes accordionIn {
+		from {
+			opacity: 0;
+			transform: translateY(-4px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 
 	/* ── Library switcher ───────────────────────────────────────────────── */
@@ -445,6 +703,62 @@
 		text-align: right;
 	}
 
+	/* ── Pinned / Recent thought rows ───────────────────────────────────── */
+
+	.thought-row {
+		display: flex;
+		align-items: center;
+		padding: 0 0.5rem 0 1rem;
+		min-height: 36px;
+		gap: 0.25rem;
+	}
+
+	.thought-link {
+		flex: 1;
+		background: none;
+		border: none;
+		cursor: pointer;
+		color: var(--text-secondary);
+		font-size: 0.8125rem;
+		font-family: inherit;
+		text-align: left;
+		padding: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		transition: color 120ms;
+	}
+
+	.thought-link:hover {
+		color: var(--text-primary);
+	}
+
+	.pin-btn {
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: none;
+		border: none;
+		cursor: pointer;
+		color: var(--text-muted);
+		font-size: 0.875rem;
+		border-radius: 4px;
+		opacity: 0;
+		transition: opacity 120ms, color 120ms;
+	}
+
+	.thought-row:hover .pin-btn {
+		opacity: 1;
+	}
+
+	.pin-btn.pinned {
+		opacity: 1;
+		color: var(--color-brand);
+	}
+
 	/* ── Topics ─────────────────────────────────────────────────────────── */
 
 	.topic-row {
@@ -508,10 +822,33 @@
 		opacity: 0.88;
 	}
 
+	/* ── Resize handle ──────────────────────────────────────────────────── */
+
+	.resize-handle {
+		position: fixed;
+		top: 0;
+		width: 6px;
+		height: 100dvh;
+		cursor: col-resize;
+		z-index: 200;
+		background: transparent;
+		transition: background 150ms;
+	}
+
+	.resize-handle:hover,
+	.resize-handle.active {
+		background: var(--color-brand);
+		opacity: 0.35;
+	}
+
 	/* ── Mobile: hide entirely — MobileDock handles nav ─────────────────── */
 
 	@media (max-width: 767px) {
 		.sidebar {
+			display: none;
+		}
+
+		.resize-handle {
 			display: none;
 		}
 	}

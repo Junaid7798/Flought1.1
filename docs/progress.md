@@ -7,13 +7,14 @@
 - [x] Phase 2 — Capture UI & Onboarding (complete 2026-03-18)
 - [x] Phase 3 — Editor ✓ (complete 2026-03-18)
 - [x] Phase 4 — Graph ✓ (complete 2026-03-18)
-- [ ] Phase 5 — Auth
-- [ ] Phase 6 — Sync Engine
+- [x] Phase 5 — Auth ✓ (complete 2026-03-18)
+- [x] Phase 6 — Sync Engine ✓ (complete 2026-03-18)
+- [x] Phase 7 — AAA UI & The Adaptive Shell ✓ (complete 2026-03-19)
 - [ ] Phase 6.5 — Store Submissions
 
 ## Current
 
-Phase 5 — Auth. Supabase authentication, login/signup flow, session management.
+Phase 6.5 — Store Submissions. Capacitor (Android/iOS) and Tauri (Windows/Mac) packaging.
 
 ---
 
@@ -37,3 +38,32 @@ Phase 5 — Auth. Supabase authentication, login/signup flow, session management
 [PHASE 4] Decision: addNode handler uses {type:'addNode'} not re-simulate. Reason: full re-simulate repositions all existing nodes which is jarring UX. Incremental addNode preserves existing positions and only resolves the new node. Alternative: full re-simulate — rejected for layout stability.
 
 [PHASE 5] Decision: Use @supabase/ssr package (not legacy @supabase/auth-helpers-sveltekit). Reason: @supabase/ssr is the current recommended approach for SvelteKit; auth-helpers is deprecated. Alternative: auth-helpers — rejected as deprecated.
+
+
+[PHASE 7] Decision: Route transitions use in: only (no out:). 
+Reason: {#key} destroys the outgoing element immediately — 
+an out: transition would conflict by trying to keep it mounted. 
+display: contents on .route-view preserves grid stacking during 
+in-transition only. Result: clean fade-in-from-below, no overlap flash.
+
+[PHASE 7] Decision: color-mix() used in thermalPillWidget.ts for
+pill background tinting. Known risk: fails silently on older Android
+WebViews. Fallback: base colour still renders. Must be addressed
+before Phase 10 (Capacitor build) — add a @supports (color-mix())
+guard or replace with opacity-based fallback at that point.
+
+[PHASE 7] Decision: Dexie version(2) bumped for font_size/sidebar_width/pinned_thought_ids fields.
+Reason: non-indexed fields don't technically require a version bump, but the .upgrade() migration
+is needed to backfill defaults into existing userSettings records for users upgrading from v1.
+Alternative: no bump, rely on optional chaining with fallbacks in UI — rejected because it
+scatters default logic across multiple components.
+
+[PHASE 7] Decision: ToastManager mounted at root layout level outside the {#key} route transition.
+Reason: toasts must survive route changes (e.g. a capture toast should stay visible while
+navigating). Mounting inside the keyed route-view would destroy the toast on navigation.
+Alternative: portal into body via action — rejected as over-engineering for V1.
+
+[PHASE 7] Decision: Toast store uses $state<Toast[]> array at module level (toastStore.svelte.ts).
+Reason: matches uiStore pattern; avoids a separate Svelte store mechanism. Array mutations
+(push/splice) are reactive because $state uses Proxy. Alternative: writable() array — rejected
+per Rule 1 (Svelte 5 Runes only).

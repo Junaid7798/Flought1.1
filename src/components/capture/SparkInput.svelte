@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { $t as t } from '$lib/i18n';
 	import { createThought } from '$lib/db';
+	import { showToast } from '$lib/stores/toastStore.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,8 @@
 		await createThought(libraryId, text);
 		value = '';
 		triggerBounce();
+		const stage = t('stage.1');
+		showToast(t('toast.captured').replace('{stage}', stage));
 	}
 
 	function triggerBounce() {

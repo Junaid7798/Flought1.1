@@ -61,6 +61,16 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'sync.reconnectTitle': 'Google Drive session expired',
   'sync.reconnectCta': 'Reconnect Google Drive',
   'sync.connectCancel': 'Not now',
+  'settings.title': 'Settings',
+  'settings.appearance': 'Appearance',
+  'settings.pipeline': 'Pipeline',
+  'settings.fontSize': 'Font size',
+  'settings.fontSizeSmall': 'Small',
+  'settings.fontSizeMedium': 'Medium',
+  'settings.fontSizeLarge': 'Large',
+  'settings.pipelineColours': 'Stage colours',
+  'settings.saved': 'Saved',
+  'toast.captured': 'Captured to {stage}',
 };
 
 // Placeholder: once userSettings exists in Dexie, read string_overrides here.
