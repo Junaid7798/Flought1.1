@@ -29,3 +29,11 @@ Phase 5 — Auth. Supabase authentication, login/signup flow, session management
 [PHASE 2] Decision: uiStore renamed from uiStore.ts → uiStore.svelte.ts. Reason: $state rune is only available inside .svelte and .svelte.ts/.svelte.js files; plain .ts files are not processed by the Svelte compiler. All imports updated to use '$lib/stores/uiStore.svelte'.
 
 [PHASE 2] Decision: MobileDock owns the mobile bottom zone; SparkInput's mobile @media fixed-position block removed. Reason: SparkInput is embedded inside MobileDock's bottom sheet — a separate fixed bar would conflict. SparkInput is layout-agnostic; positioning is the parent's responsibility.
+
+[PHASE 3] Decision: searchWorker stored in uiStore.searchWorker instead of passed as prop. Reason: both the (app) layout and thought/[id] page need access; prop drilling across route group layout boundaries is fragile. Singleton in global store is cleaner.
+
+[PHASE 4] Decision: D3 simulation runs to tick completion synchronously in worker, then posts once. Reason: incremental position messages would flood the main thread (rAF × simulation ticks). Posting once after convergence is sufficient for layout; drag uses alpha(0.3) re-runs. Alternative: stream tick positions — rejected as unnecessary for static layout.
+
+[PHASE 4] Decision: addNode handler uses {type:'addNode'} not re-simulate. Reason: full re-simulate repositions all existing nodes which is jarring UX. Incremental addNode preserves existing positions and only resolves the new node. Alternative: full re-simulate — rejected for layout stability.
+
+[PHASE 5] Decision: Use @supabase/ssr package (not legacy @supabase/auth-helpers-sveltekit). Reason: @supabase/ssr is the current recommended approach for SvelteKit; auth-helpers is deprecated. Alternative: auth-helpers — rejected as deprecated.
