@@ -45,6 +45,17 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'map.placeholder': 'Graph coming in Phase 4.',
   'map.showAll': 'Show full graph',
   'map.stats': '{total} thoughts · showing {visible}',
+  'login.tagline': 'Think in graphs.',
+  'login.google': 'Continue with Google',
+  'login.github': 'Continue with GitHub',
+  'login.emailLabel': 'Or continue with email',
+  'login.emailPlaceholder': 'you@example.com',
+  'login.emailCta': 'Send magic link',
+  'login.emailSent': 'Check your inbox — link sent to {email}',
+  'login.error': 'Something went wrong. Please try again.',
+  'sync.local': 'Local only',
+  'sync.syncing': 'Syncing…',
+  'sync.error': 'Sync error',
 };
 
 // Placeholder: once userSettings exists in Dexie, read string_overrides here.

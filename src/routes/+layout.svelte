@@ -17,8 +17,11 @@
 	let ready = $state(false);
 
 	onMount(async () => {
-		// Skip guard on the onboarding route itself
-		if ($page.url.pathname.startsWith('/onboarding')) {
+		// Skip guard on auth and onboarding routes
+		if (
+			$page.url.pathname.startsWith('/onboarding') ||
+			$page.url.pathname.startsWith('/login')
+		) {
 			ready = true;
 			return;
 		}
@@ -54,7 +57,10 @@
 
 	// ── Derived ───────────────────────────────────────────────────────────────
 
-	const isOnboarding = $derived($page.url.pathname.startsWith('/onboarding'));
+	const isOnboarding = $derived(
+		$page.url.pathname.startsWith('/onboarding') ||
+		$page.url.pathname.startsWith('/login')
+	);
 
 	// ── Handlers ──────────────────────────────────────────────────────────────
 

@@ -13,6 +13,7 @@
   --text-primary:   #F1F5F9;
   --text-secondary: #94A3B8;
   --text-muted:     #475569;
+  --color-error:    #EF4444;
   --border:         rgba(255,255,255,0.06);
   --border-strong:  rgba(255,255,255,0.14);
   --shadow-dropdown: rgba(0,0,0,0.4);

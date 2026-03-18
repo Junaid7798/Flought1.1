@@ -19,6 +19,7 @@ export interface UserProfile {
 	blueprint_applied: string | false;
 	onboarding_complete: boolean;
 	schema_version: number;
+	supabase_user_id: string | null;
 	behavior_signals: {
 		mapViewTime: number;
 		pipelineInteractions: number;
@@ -296,6 +297,7 @@ export async function initUserProfile(
 		blueprint_applied: false,
 		onboarding_complete: false,
 		schema_version: 1,
+		supabase_user_id: null,
 		behavior_signals: {
 			mapViewTime: 0,
 			pipelineInteractions: 0,
@@ -332,6 +334,13 @@ export async function updateUserSettings(
 
 export async function markOnboardingComplete(): Promise<void> {
 	await db.userProfile.update(PROFILE_ID, { onboarding_complete: true });
+}
+
+export async function tagUserProfileWithSupabaseId(userId: string): Promise<void> {
+	const existing = await db.userProfile.get(PROFILE_ID);
+	if (!existing) return;
+	if (existing.supabase_user_id === userId) return; // already tagged
+	await db.userProfile.update(PROFILE_ID, { supabase_user_id: userId });
 }
 
 // ── Blueprint ─────────────────────────────────────────────────────────────────

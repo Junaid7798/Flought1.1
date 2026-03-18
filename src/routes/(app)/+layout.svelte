@@ -1,15 +1,54 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
-	import { getThoughtsByLibrary } from '$lib/db';
+	import { getThoughtsByLibrary, getUserProfile, tagUserProfileWithSupabaseId } from '$lib/db';
 	import type { Thought } from '$lib/db';
+	import { supabase, getSession } from '$lib/supabase';
+	import type { Subscription } from '@supabase/supabase-js';
 
 	let { children } = $props();
 
+	// ── Auth guard ────────────────────────────────────────────────────────────
+
+	let authSub: Subscription | null = null;
+
+	onMount(async () => {
+		// 1. Check current session — redirect to /login if missing
+		let session;
+		try {
+			session = await getSession();
+		} catch {
+			goto('/login');
+			return;
+		}
+		if (!session) {
+			goto('/login');
+			return;
+		}
+
+		// 2. Tag local Dexie profile with Supabase user ID (idempotent)
+		await tagUserProfileWithSupabaseId(session.user.id);
+
+		// 3. Check onboarding — redirect if incomplete
+		const profile = await getUserProfile();
+		if (!profile?.onboarding_complete) {
+			goto('/onboarding');
+			return;
+		}
+
+		// 4. Listen for auth state changes (token refresh, sign-out)
+		const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+			if (event === 'SIGNED_OUT' || !newSession) {
+				goto('/login');
+			} else if (event === 'TOKEN_REFRESHED' && newSession) {
+				await tagUserProfileWithSupabaseId(newSession.user.id);
+			}
+		});
+		authSub = data.subscription;
+	});
+
 	// ── Search index rebuild ──────────────────────────────────────────────────
-	// Subscribe to the live thought list; when it changes, debounce an
-	// {type:'index'} message to the search worker so the FlexSearch index
-	// stays in sync without hammering the worker on rapid back-to-back writes.
 
 	let indexDebounce: ReturnType<typeof setTimeout> | null = null;
 	let liveSubscription: { unsubscribe(): void } | null = null;
@@ -18,7 +57,6 @@
 		const libraryId = uiStore.activeLibraryId;
 		if (!libraryId) return;
 
-		// Tear down any previous subscription when libraryId changes
 		liveSubscription?.unsubscribe();
 
 		liveSubscription = getThoughtsByLibrary(libraryId).subscribe((thoughts: Thought[]) => {
@@ -35,6 +73,7 @@
 	onDestroy(() => {
 		if (indexDebounce) clearTimeout(indexDebounce);
 		liveSubscription?.unsubscribe();
+		authSub?.unsubscribe();
 	});
 </script>
 
