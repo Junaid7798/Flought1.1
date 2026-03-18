@@ -6,4 +6,5 @@ export const uiStore = $state({
   activeLibraryId: '' as string,
   commandPaletteOpen: false,
   theme: 'midnight' as 'midnight' | 'light',
+  searchWorker: null as Worker | null,
 });

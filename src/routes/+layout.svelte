@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
@@ -8,6 +8,7 @@
 	import Sidebar from '../components/layout/Sidebar.svelte';
 	import MobileDock from '../components/layout/MobileDock.svelte';
 	import SparkInput from '../components/capture/SparkInput.svelte';
+	import CommandPalette from '../components/search/CommandPalette.svelte';
 
 	let { children } = $props();
 
@@ -34,12 +35,35 @@
 			uiStore.activeLibraryId = lib.id;
 		}
 
+		// Start search worker and store in uiStore so any route can access it
+		uiStore.searchWorker = new Worker(new URL('../workers/searchWorker.ts', import.meta.url), {
+			type: 'module',
+		});
+
 		ready = true;
+
+		// Global Cmd+K / Ctrl+K shortcut
+		window.addEventListener('keydown', handleGlobalKeydown);
+	});
+
+	onDestroy(() => {
+		uiStore.searchWorker?.terminate();
+		uiStore.searchWorker = null;
+		window.removeEventListener('keydown', handleGlobalKeydown);
 	});
 
 	// ── Derived ───────────────────────────────────────────────────────────────
 
 	const isOnboarding = $derived($page.url.pathname.startsWith('/onboarding'));
+
+	// ── Handlers ──────────────────────────────────────────────────────────────
+
+	function handleGlobalKeydown(e: KeyboardEvent) {
+		if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+			e.preventDefault();
+			uiStore.commandPaletteOpen = !uiStore.commandPaletteOpen;
+		}
+	}
 </script>
 
 {#if isOnboarding}
@@ -64,6 +88,9 @@
 
 	<!-- Mobile dock (fixed, self-contained) -->
 	<MobileDock libraryId={uiStore.activeLibraryId} />
+
+	<!-- Command palette (portal-like, fixed overlay) -->
+	<CommandPalette libraryId={uiStore.activeLibraryId} />
 {/if}
 
 <style>

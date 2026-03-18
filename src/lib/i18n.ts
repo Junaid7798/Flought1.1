@@ -32,6 +32,17 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'sync.justNow': 'Synced just now',
   'sync.oneMin': 'Synced 1 min ago',
   'sync.minsAgo': 'Synced {n} min ago',
+  'editor.stage': 'Stage',
+  'editor.created': 'Created',
+  'editor.customKey': 'Property',
+  'editor.titlePlaceholder': 'Untitled',
+  'editor.titleAriaLabel': 'Thought title',
+  'editor.backAriaLabel': 'Back to map',
+  'search.placeholder': 'Search thoughts…',
+  'search.ariaLabel': 'Command palette',
+  'search.untitled': 'Untitled',
+  'search.empty': 'No results',
+  'map.placeholder': 'Graph coming in Phase 4.',
 };
 
 // Placeholder: once userSettings exists in Dexie, read string_overrides here.

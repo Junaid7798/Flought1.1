@@ -5,7 +5,7 @@
 - [x] Phase 0 — Shell & Pipeline (complete 2026-03-18)
 - [x] Phase 1 — Data Layer (complete 2026-03-18)
 - [x] Phase 2 — Capture UI & Onboarding (complete 2026-03-18)
-- [ ] Phase 3 — Editor
+- [x] Phase 3 — Editor ✓ (complete 2026-03-18)
 - [ ] Phase 4 — Graph
 - [ ] Phase 5 — Auth
 - [ ] Phase 6 — Sync Engine
@@ -13,7 +13,7 @@
 
 ## Current
 
-Phase 3 — Editor. Next: Task 3.1 — src/routes/editor/+page.svelte with CodeMirror, wikilink parsing, and properties panel.
+Phase 4 — Graph. Canvas 2D renderer, D3 force simulation in graphWorker.ts, focus/neighbourhood mode.
 
 ---
 
