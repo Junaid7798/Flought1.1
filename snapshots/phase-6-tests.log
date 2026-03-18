@@ -1,0 +1,22 @@
+=== npm run check ===
+
+> flought-v2@0.0.1 check
+> svelte-kit sync && svelte-check --tsconfig ./tsconfig.json
+
+1773852586458 START "e:\\Flought V2"
+1773852586465 COMPLETED 4091 FILES 0 ERRORS 0 WARNINGS 0 FILES_WITH_PROBLEMS
+
+=== npm test ===
+
+> flought-v2@0.0.1 test
+> vitest run
+
+
+[1m[46m RUN [49m[22m [36mv4.1.0 [39m[90mE:/Flought V2[39m
+
+
+[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[32m42 passed[39m[22m[90m (42)[39m
+[2m   Start at [22m 22:19:47
+[2m   Duration [22m 855ms[2m (transform 122ms, setup 0ms, import 216ms, tests 91ms, environment 1.70s)[22m
+

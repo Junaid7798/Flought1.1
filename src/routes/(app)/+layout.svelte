@@ -2,10 +2,18 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
-	import { getThoughtsByLibrary, getUserProfile, tagUserProfileWithSupabaseId } from '$lib/db';
-	import type { Thought } from '$lib/db';
+	import {
+		getThoughtsByLibrary,
+		getUserProfile, getUserSettings,
+		tagUserProfileWithSupabaseId, updateUserSettings,
+		db,
+	} from '$lib/db';
+	import type { Thought, Edge } from '$lib/db';
 	import { supabase, getSession } from '$lib/supabase';
 	import type { Subscription } from '@supabase/supabase-js';
+	import { syncService } from '$lib/sync/SyncService';
+	import { GoogleDriveAdapter } from '$lib/sync/GoogleDriveAdapter';
+	import { eventBus } from '$lib/eventBus';
 
 	let { children } = $props();
 
@@ -46,7 +54,101 @@
 			}
 		});
 		authSub = data.subscription;
+
+		// 5. Wire sync adapter if connected
+		await initSync();
 	});
+
+	// ── Sync wiring ──────────────────────────────────────────────────────────
+
+	let syncPushDebounce: ReturnType<typeof setTimeout> | null = null;
+	let syncEventUnsubs: (() => void)[] = [];
+
+	const SYNC_PUSH_DELAY = 30_000; // 30s after last write
+
+	async function initSync() {
+		const settings = await getUserSettings();
+		if (!settings?.sync_connected || settings.sync_provider !== 'google') {
+			uiStore.syncStatus = 'local';
+			return;
+		}
+
+		// Attach adapter
+		const adapter = new GoogleDriveAdapter();
+		syncService.setAdapter(adapter);
+
+		// Pull on app open to hydrate Dexie from Drive
+		uiStore.syncStatus = 'syncing';
+		const pulled = await syncService.pull();
+		uiStore.syncStatus = syncService.getStatus();
+
+		if (pulled) {
+			await mergePulledPayload(pulled.thoughts, pulled.edges);
+			uiStore.lastSyncedAt = new Date().toISOString();
+			await updateUserSettings({ last_synced_at: uiStore.lastSyncedAt });
+		}
+
+		// Listen for db writes → debounced push
+		const writeEvents = [
+			'thought.created', 'thought.updated', 'edge.created', 'edge.updated',
+		] as const;
+		for (const eventType of writeEvents) {
+			const unsub = eventBus.on(eventType, () => schedulePush());
+			syncEventUnsubs.push(unsub);
+		}
+	}
+
+	function schedulePush() {
+		if (syncPushDebounce) clearTimeout(syncPushDebounce);
+		syncPushDebounce = setTimeout(() => executePush(), SYNC_PUSH_DELAY);
+	}
+
+	async function executePush() {
+		const libraryId = uiStore.activeLibraryId;
+		if (!libraryId) return;
+
+		const thoughts = await db.thoughts
+			.where('library_id').equals(libraryId)
+			.filter((t: Thought) => !t.is_deleted)
+			.toArray();
+		const edges = await db.edges
+			.where('library_id').equals(libraryId)
+			.filter((e: Edge) => !e.is_deleted)
+			.toArray();
+
+		uiStore.syncStatus = 'syncing';
+		const result = await syncService.push({
+			thoughts,
+			edges,
+			exportedAt: new Date().toISOString(),
+		});
+		uiStore.syncStatus = syncService.getStatus();
+
+		if (result.success) {
+			uiStore.lastSyncedAt = new Date().toISOString();
+			await updateUserSettings({ last_synced_at: uiStore.lastSyncedAt });
+			eventBus.emit({ type: 'sync.completed', payload: { provider: 'google' } });
+		}
+	}
+
+	/**
+	 * Merge pulled thoughts/edges into Dexie — last-write-wins by updated_at.
+	 * Does not delete local thoughts absent from remote (local-first).
+	 */
+	async function mergePulledPayload(remoteThoughts: Thought[], remoteEdges: Edge[]) {
+		for (const rt of remoteThoughts) {
+			const local = await db.thoughts.get(rt.id);
+			if (!local || rt.updated_at > local.updated_at) {
+				await db.thoughts.put(rt);
+			}
+		}
+		for (const re of remoteEdges) {
+			const local = await db.edges.get(re.id);
+			if (!local || re.created_at > local.created_at) {
+				await db.edges.put(re);
+			}
+		}
+	}
 
 	// ── Search index rebuild ──────────────────────────────────────────────────
 
@@ -72,8 +174,10 @@
 
 	onDestroy(() => {
 		if (indexDebounce) clearTimeout(indexDebounce);
+		if (syncPushDebounce) clearTimeout(syncPushDebounce);
 		liveSubscription?.unsubscribe();
 		authSub?.unsubscribe();
+		for (const unsub of syncEventUnsubs) unsub();
 	});
 </script>
 

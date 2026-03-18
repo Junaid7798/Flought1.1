@@ -56,6 +56,11 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'sync.local': 'Local only',
   'sync.syncing': 'Syncing…',
   'sync.error': 'Sync error',
+  'sync.connectTitle': 'Back up your thoughts to Google Drive?',
+  'sync.connectCta': 'Connect Google Drive',
+  'sync.reconnectTitle': 'Google Drive session expired',
+  'sync.reconnectCta': 'Reconnect Google Drive',
+  'sync.connectCancel': 'Not now',
 };
 
 // Placeholder: once userSettings exists in Dexie, read string_overrides here.

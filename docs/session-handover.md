@@ -81,9 +81,8 @@ Phase 5 — Auth (complete):
 
 npm run check: PASSING (0 errors, 0 warnings)
 npm run test: 42 tests passing (3 test files)
-Last git commit: feat(phase-5): auth — login page, session guard, sync badge (465e608)
-Last push: origin/master at 465e608
-SyncService.ts and GoogleDriveAdapter.ts are NOT yet committed — staged for next commit.
+Last git commit: feat(phase-6): sync engine — SyncService + GoogleDriveAdapter (8221def)
+Last push: origin/master at 465e608 (8221def not yet pushed)
 Live URL: not yet deployed
 
 ---

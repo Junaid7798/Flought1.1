@@ -13,6 +13,7 @@
 	} from '$lib/db';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
 	import { eventBus } from '$lib/eventBus';
+	import SyncStatusBadge from './SyncStatusBadge.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -55,14 +56,6 @@
 		[...new Set(thoughts.map((t) => t.topic).filter(Boolean))].sort()
 	);
 
-	// Last synced display
-	const lastSyncedLabel = $derived(() => {
-		if (!settings?.last_synced_at) return t('sync.never');
-		const diff = Math.floor((Date.now() - new Date(settings.last_synced_at).getTime()) / 60000);
-		if (diff < 1) return t('sync.justNow');
-		if (diff === 1) return t('sync.oneMin');
-		return t('sync.minsAgo').replace('{n}', String(diff));
-	});
 
 	// ── Library switcher ──────────────────────────────────────────────────────
 
@@ -208,10 +201,7 @@
 
 	<!-- ── Sync badge ─────────────────────────────────────────────────────── -->
 	<div class="sync-badge">
-		<span class="sync-icon" aria-hidden="true">⟳</span>
-		<span class="sync-text">
-			{settings?.sync_connected ? lastSyncedLabel() : t('sync.offline')}
-		</span>
+		<SyncStatusBadge status={uiStore.syncStatus} lastSyncedAt={uiStore.lastSyncedAt} />
 	</div>
 
 	<!-- ── Capture button ─────────────────────────────────────────────────── -->
@@ -492,16 +482,6 @@
 		gap: 0.5rem;
 		padding: 0.5rem 1rem;
 		border-top: 1px solid var(--border);
-	}
-
-	.sync-icon {
-		font-size: 0.875rem;
-		color: var(--text-muted);
-	}
-
-	.sync-text {
-		font-size: 0.75rem;
-		color: var(--text-muted);
 	}
 
 	.capture-btn {
