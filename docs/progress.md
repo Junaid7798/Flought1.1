@@ -11,11 +11,12 @@
 - [x] Phase 6 — Sync Engine ✓ (complete 2026-03-18)
 - [x] Phase 7 — AAA UI & The Adaptive Shell ✓ (complete 2026-03-19)
 - [x] Phase 8 — The Hybrid Editor & Shortcut Engine ✓ (complete 2026-03-19)
+- [x] Phase 9 — Graph Intelligence & Widgets ✓ (complete 2026-03-19)
 - [ ] Phase 6.5 — Store Submissions
 
 ## Current
 
-Phase 9 — Graph Intelligence & Widgets. Next: 9.1 Semantic Gravity (focusStage force pull), 9.2 Convex Hull clustering, 9.3 Node Context Menu + PipelineMomentum sidebar widget.
+Phase 10 — Device Testing & Polish. Next phase per build plan.
 
 ---
 
@@ -81,3 +82,42 @@ Alternative: emit an outline-update event via eventBus — rejected as over-engi
 Reason: embed cards display a 2-line body snippet which requires the content field.
 The cost is acceptable because this liveQuery is scoped to the active library only.
 Alternative: store snippet separately in Dexie — rejected; premature optimisation for V1.
+
+[PHASE 8] Decision: DocumentOutline polls syntaxTree every 400ms.
+Known risk: constant timer while editor open. If Phase 9 graph
+physics causes frame drops on mobile, reduce poll to 800ms or
+switch to CM6 updateListener extension which fires only on
+document changes — zero polling overhead.
+Monitor during Phase 10 device testing.
+
+[PHASE 9] Decision: Semantic Gravity uses per-node strength function in forceX/forceY.
+Reason: d3.forceX/forceY accept a strength accessor — matching nodes get 0.3 (pull to center),
+non-matching get -0.1 (gentle push outward). This avoids splitting nodes into separate
+force groups or manually computing positions. alpha(0.4) gives a visible but non-jarring
+rearrangement. Alternative: custom force function — rejected as unnecessary complexity.
+
+[PHASE 9] Decision: Convex hulls computed in worker, colours resolved on main thread.
+Reason: FIX-18/FIX-24 — CSS variables cannot be read inside a Web Worker (no DOM access).
+getComputedStyle(document.body).getPropertyValue('--color-*') runs on mount in GraphCanvas.
+Worker sends hull coordinates only; main thread owns colour mapping.
+Alternative: hardcode hex values in worker — rejected per Rule 8.
+
+[PHASE 9] Decision: Hull padding expands each vertex 30px outward from centroid.
+Reason: raw polygonHull wraps nodes tightly — adding radial padding gives a visual
+"cloud" effect that reads as a group rather than a polygon. The expansion is simple
+vector math (no extra dependency). Alternative: canvas path.quadraticCurveTo for
+rounded hulls — deferred to Phase 10 polish if needed.
+
+[PHASE 9] Decision: PipelineMomentum uses transform: scaleX() for bar fill animation.
+Reason: FIX-19/FIX-25 — Rule 9 requires animations via transform/opacity only.
+scaleX with transform-origin: left achieves a percentage-width fill bar without
+animating the width property. Container width set via --momentum-bar-width CSS variable
+per Rule 8. Alternative: animate width directly — rejected per Rule 9.
+
+[PHASE 9] Decision: Replaced color-mix() in thermalPillWidget.ts with rgba() opacity fallback.
+Reason: color-mix(in srgb, ...) fails silently on older Android WebViews (logged as
+Phase 7 debt). Resolved by reading CSS variable via getComputedStyle, converting hex
+to RGB with hexToRgb(), then setting background rgba(r,g,b, 0.18) and borderColor
+rgba(r,g,b, 0.35) inline in toDOM(). Same opacity values as the original color-mix
+percentages. Alternative: @supports guard — rejected because CM6 baseTheme is a JS
+object, not a CSS stylesheet, so @supports cannot be used there.

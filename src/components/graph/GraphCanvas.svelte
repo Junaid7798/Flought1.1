@@ -14,6 +14,8 @@
 	import { PIPELINE_STATES, GRAPH_CONFIG, ANIMATION_CONFIG } from '$lib/config';
 	import { drawNode } from './GraphNode';
 	import { drawEdge } from './GraphEdge';
+	import { getUserSettings } from '$lib/db';
+	import NodeContextMenu from './NodeContextMenu.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -64,12 +66,26 @@
 	// RAF throttle for drag
 	let dragRafPending = false;
 
+	// Context menu state
+	let contextMenuOpen = $state(false);
+	let contextMenuX = $state(0);
+	let contextMenuY = $state(0);
+	let contextNodeId = $state<string | null>(null);
+	let contextNodeStage = $state(1);
+	let contextNodePinned = $state(false);
+
+	// Hull data from worker
+	let hullData: Record<number, [number, number][]> = {};
+
 	// ── Colour lookup ────────────────────────────────────────────────────────
 
 	const PIPELINE_COLOUR: Record<number, string> = {};
 	for (const s of PIPELINE_STATES) {
 		PIPELINE_COLOUR[s.id] = s.colour;
 	}
+
+	// Resolved CSS colours for hull rendering (FIX-18/FIX-24: read on main thread)
+	const HULL_COLOUR: Record<number, string> = {};
 	const EDGE_COLOUR = 'rgba(255,255,255,0.15)';
 
 	const NODE_RADIUS = 6;
@@ -180,12 +196,48 @@
 		return connected ? GRAPH_CONFIG.edgeFocusOpacity : GRAPH_CONFIG.edgeUnfocusedOpacity;
 	}
 
+	function drawHulls() {
+		if (!ctx) return;
+		for (const [stageId, hull] of Object.entries(hullData)) {
+			const colour = HULL_COLOUR[Number(stageId)] ?? PIPELINE_COLOUR[Number(stageId)];
+			if (!colour || hull.length < 3) continue;
+
+			ctx.save();
+			ctx.globalAlpha = 0.06;
+			ctx.beginPath();
+
+			// Draw hull with padding — expand each point outward from centroid
+			const cx = hull.reduce((s, p) => s + p[0], 0) / hull.length;
+			const cy = hull.reduce((s, p) => s + p[1], 0) / hull.length;
+			const padding = 30;
+
+			for (let i = 0; i < hull.length; i++) {
+				const dx = hull[i][0] - cx;
+				const dy = hull[i][1] - cy;
+				const dist = Math.hypot(dx, dy) || 1;
+				const px = hull[i][0] + (dx / dist) * padding;
+				const py = hull[i][1] + (dy / dist) * padding;
+				const [sx, sy] = worldToScreen(px, py);
+				if (i === 0) ctx.moveTo(sx, sy);
+				else ctx.lineTo(sx, sy);
+			}
+
+			ctx.closePath();
+			ctx.fillStyle = colour;
+			ctx.fill();
+			ctx.restore();
+		}
+	}
+
 	function draw() {
 		if (!ctx || !canvasEl || !posBuffer) return;
 		const w = canvasEl.width;
 		const h = canvasEl.height;
 
 		ctx.clearRect(0, 0, w, h);
+
+		// Draw convex hull blobs underneath everything
+		drawHulls();
 
 		const { edges } = getFilteredData();
 
@@ -396,6 +448,40 @@
 		isPanning = false;
 	}
 
+	// ── Context menu ─────────────────────────────────────────────────────────
+
+	async function handleContextMenu(e: MouseEvent) {
+		e.preventDefault();
+		if (!canvasEl) return;
+		const rect = canvasEl.getBoundingClientRect();
+		const px = e.clientX - rect.left;
+		const py = e.clientY - rect.top;
+		const nodeId = hitTestNode(px, py);
+		if (!nodeId) {
+			contextMenuOpen = false;
+			return;
+		}
+
+		const thought = getThoughtById(nodeId);
+		if (!thought) return;
+
+		// Check if pinned
+		const settings = await getUserSettings();
+		const pinnedIds = new Set<string>(settings?.pinned_thought_ids ?? []);
+
+		contextNodeId = nodeId;
+		contextNodeStage = thought.meta_state;
+		contextNodePinned = pinnedIds.has(nodeId);
+		contextMenuX = e.clientX;
+		contextMenuY = e.clientY;
+		contextMenuOpen = true;
+	}
+
+	function closeContextMenu() {
+		contextMenuOpen = false;
+		contextNodeId = null;
+	}
+
 	// ── Zoom ─────────────────────────────────────────────────────────────────
 
 	function handleWheel(e: WheelEvent) {
@@ -441,6 +527,7 @@
 		if (e.data?.type === 'positions') {
 			posBuffer = e.data.buffer;
 			nodeIndex = e.data.nodeIndex;
+			hullData = e.data.hulls ?? {};
 			draw();
 		}
 	}
@@ -457,12 +544,34 @@
 		}
 	});
 
+	// ── React to stage focus (Semantic Gravity) ──────────────────────────────
+
+	let prevStageId: number | null = null;
+
+	$effect(() => {
+		const stageId = uiStore.focusedStageId;
+		if (stageId === prevStageId) return;
+		prevStageId = stageId;
+		if (!worker) return;
+		if (stageId !== null) {
+			worker.postMessage({ type: 'focusStage', stageId });
+		} else {
+			worker.postMessage({ type: 'clearFocusStage' });
+		}
+	});
+
 	// ── Lifecycle ─────────────────────────────────────────────────────────────
 
 	onMount(() => {
 		if (!canvasEl) return;
 		ctx = canvasEl.getContext('2d');
 		resizeCanvas();
+
+		// Resolve CSS variables for hull colours (FIX-18/FIX-24: main thread only)
+		const styles = getComputedStyle(document.body);
+		for (const s of PIPELINE_STATES) {
+			HULL_COLOUR[s.id] = styles.getPropertyValue(s.cssVar).trim();
+		}
 
 		// Worker
 		worker = new Worker(
@@ -534,7 +643,19 @@
 	onpointerdown={handlePointerDown}
 	onpointermove={handlePointerMove}
 	onpointerup={handlePointerUp}
+	oncontextmenu={handleContextMenu}
 ></canvas>
+
+{#if contextMenuOpen && contextNodeId}
+	<NodeContextMenu
+		thoughtId={contextNodeId}
+		currentStage={contextNodeStage}
+		isPinned={contextNodePinned}
+		x={contextMenuX}
+		y={contextMenuY}
+		onclose={closeContextMenu}
+	/>
+{/if}
 
 <style>
 	.graph-canvas {

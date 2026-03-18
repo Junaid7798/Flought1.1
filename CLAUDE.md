@@ -61,6 +61,8 @@ Google Drive is optional backup only. V1 is 100% free.
 After completing every numbered task, run the flought-reviewer skill
 from .claude/skills/flought-reviewer-SKILL.md before writing any
 handover or committing. Never ask permission. Just run it.
+Build plan: docs/build-plan-2.md
+
 
 ---
 

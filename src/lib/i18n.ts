@@ -71,6 +71,12 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'settings.pipelineColours': 'Stage colours',
   'settings.saved': 'Saved',
   'toast.captured': 'Captured to {stage}',
+  'context.open': 'Open',
+  'context.changeStage': 'Change stage',
+  'context.pin': 'Pin',
+  'context.unpin': 'Unpin',
+  'context.delete': 'Delete',
+  'momentum.label': 'Momentum',
 };
 
 // Placeholder: once userSettings exists in Dexie, read string_overrides here.

@@ -16,6 +16,7 @@
 	import { uiStore } from '$lib/stores/uiStore.svelte';
 	import { eventBus } from '$lib/eventBus';
 	import SyncStatusBadge from './SyncStatusBadge.svelte';
+	import PipelineMomentum from './PipelineMomentum.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -119,10 +120,8 @@
 
 	// ── Stage filter ──────────────────────────────────────────────────────────
 
-	let activeStage = $state<number | null>(null);
-
 	function selectStage(id: number) {
-		activeStage = activeStage === id ? null : id;
+		uiStore.focusedStageId = uiStore.focusedStageId === id ? null : id;
 	}
 
 	// ── Collapsible sections ──────────────────────────────────────────────────
@@ -261,7 +260,7 @@
 		{#each PIPELINE_STATES as state, i}
 			<button
 				class="stage-btn"
-				class:stage-active={activeStage === state.id}
+				class:stage-active={uiStore.focusedStageId === state.id}
 				style="--stage-colour: var({state.cssVar})"
 				onclick={() => selectStage(state.id)}
 			>
@@ -270,6 +269,11 @@
 				<span class="stage-count">{stageCounts[i]}</span>
 			</button>
 		{/each}
+	</div>
+
+	<!-- ── Pipeline Momentum ──────────────────────────────────────────────── -->
+	<div class="section">
+		<PipelineMomentum {thoughts} />
 	</div>
 
 	<!-- ── Pinned Thoughts ─────────────────────────────────────────────────── -->

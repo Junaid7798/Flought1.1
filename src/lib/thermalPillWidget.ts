@@ -16,6 +16,15 @@ export type ThoughtStateMap = Map<string, 1 | 2 | 3 | 4>;
 
 export const updateThoughtStates = StateEffect.define<ThoughtStateMap>();
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Convert "#RRGGBB" to "R, G, B" string for rgba(). Returns null on invalid input. */
+function hexToRgb(hex: string): string | null {
+	const m = hex.match(/^#?([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})$/);
+	if (!m) return null;
+	return `${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}`;
+}
+
 // ── Widget ────────────────────────────────────────────────────────────────────
 
 class ThermalPillWidget extends WidgetType {
@@ -36,6 +45,15 @@ class ThermalPillWidget extends WidgetType {
 		pill.textContent = this.title;
 		pill.style.setProperty('--pill-colour', `var(${cssVar})`);
 		pill.setAttribute('aria-label', `Linked thought: ${this.title}`);
+
+		// Resolve hex → rgba for opacity-based tinting (no color-mix dependency)
+		const hex = getComputedStyle(document.body).getPropertyValue(cssVar).trim();
+		const rgb = hexToRgb(hex);
+		if (rgb) {
+			pill.style.background = `rgba(${rgb}, 0.18)`;
+			pill.style.borderColor = `rgba(${rgb}, 0.35)`;
+		}
+
 		return pill;
 	}
 
@@ -112,9 +130,10 @@ export const thermalPillTheme = EditorView.baseTheme({
 		borderRadius: '10px',
 		fontSize: '0.8125em',
 		fontWeight: '500',
-		background: 'color-mix(in srgb, var(--pill-colour) 18%, transparent)',
+		// background + borderColor set inline via toDOM() using resolved rgba values
 		color: 'var(--pill-colour)',
-		border: '1px solid color-mix(in srgb, var(--pill-colour) 35%, transparent)',
+		borderWidth: '1px',
+		borderStyle: 'solid',
 		cursor: 'default',
 		verticalAlign: 'middle',
 		lineHeight: '1.4',

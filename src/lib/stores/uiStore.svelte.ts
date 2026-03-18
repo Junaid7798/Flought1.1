@@ -11,4 +11,5 @@ export const uiStore = $state({
   searchWorker: null as Worker | null,
   syncStatus: 'local' as SyncStatus,
   lastSyncedAt: null as string | null,
+  focusedStageId: null as number | null,
 });

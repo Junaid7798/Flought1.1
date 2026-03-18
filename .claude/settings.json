@@ -3,7 +3,25 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(node -e \"const s = require\\(''./node_modules/@supabase/supabase-js/package.json''\\); console.log\\(s.name, s.version\\)\")",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(node -e \"const fs = require\\(''fs''\\); console.log\\(fs.existsSync\\(''node_modules/flexsearch''\\) ? ''exists'' : ''missing''\\); const pkg = JSON.parse\\(fs.readFileSync\\(''node_modules/flexsearch/package.json'',''utf8''\\)\\); console.log\\(''main:'', pkg.main, ''module:'', pkg.module, ''exports:'', JSON.stringify\\(pkg.exports,null,2\\).slice\\(0,300\\)\\);\")",
+      "Bash(node -e \"import\\(''flexsearch''\\).then\\(m => console.log\\(Object.keys\\(m\\)\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(node -e \"const fs=require\\(''fs''\\); const d=fs.readFileSync\\(''node_modules/flexsearch/index.d.ts'',''utf8''\\); const m=d.match\\(/DocumentValue[^;]*/\\); console.log\\(m?.[0]?.slice\\(0,200\\)\\)\")",
+      "Bash(rm \"e:\\\\Flought V2\\\\src\\\\routes\\\\thought\\\\[id]\\\\+page.svelte\")",
+      "Bash(rmdir \"e:\\\\Flought V2\\\\src\\\\routes\\\\thought\\\\[id]\")",
+      "Bash(grep -v \"//.*#\")",
+      "Bash(npm ls:*)",
+      "Bash(ls \"e:\\\\Flought V2\"/.env*)",
+      "Bash(npm test:*)",
+      "Bash(grep -rn \"#[0-9A-Fa-f]\\\\{3,6\\\\}\" src/ --include=\"*.svelte\" --include=\"*.ts\")",
+      "Bash(grep -rn \":\\\\s*#[0-9A-Fa-f]\\\\{3,6\\\\}\\\\b\\\\|color\\\\s*=\\\\s*[''''\"\"]#[0-9A-Fa-f]\\\\{3,6\\\\}\\\\|background\\\\s*=\\\\s*[''''\"\"]#[0-9A-Fa-f]\\\\{3,6\\\\}\" src/ --include=\"*.svelte\" --include=\"*.ts\")",
+      "Bash(find 'e:\\\\Flought V2' -name *build-plan* -o -name *phase*9*)",
+      "Bash(node -e \"try { require.resolve\\(''d3-polygon''\\); console.log\\(''found''\\); } catch { console.log\\(''not found''\\); }\")",
+      "Bash(npx vitest:*)"
+    ],
+    "additionalDirectories": [
+      "e:\\Flought V2\\src\\routes\\thought",
+      "e:\\Flought V2\\src\\routes\\(app)\\thought"
     ]
   }
 }

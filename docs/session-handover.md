@@ -2,47 +2,61 @@
 # Overwrite this file completely at the end of every session.
 # The next session starts by reading this file first.
 
-**Last updated:** 2026-03-18
+**Last updated:** 2026-03-19
 **Session ended cleanly:** yes
 
 ---
 
 ## Resume from here
 
-Phase: 6 — Sync Engine (wiring)
-Next task: Wire GoogleDriveAdapter into syncService. In src/routes/(app)/+layout.svelte, after session check: if userSettings.sync_connected && sync_provider === 'google', instantiate GoogleDriveAdapter and call syncService.setAdapter(adapter), then call syncService.pull() to hydrate local Dexie from Drive. Add a push() call after every db write (or on a 30s interval). Wire syncService.getStatus() into SyncStatusBadge in Sidebar.svelte.
+Phase: 10 — Device Testing & Polish (or Phase 6.5 — Store Submissions)
+Next task: Per build plan. Phase 9 is complete. The next major phase depends on the build plan.
 Model to use: Sonnet 4.6
 
 ---
 
-## Completed this session (2026-03-18)
+## Completed this session (2026-03-19)
 
-Phase 5 — Auth (complete):
-- src/lib/supabase.ts — createClient + getSession() helper
-- src/routes/login/+page.svelte — Google OAuth, GitHub OAuth, email magic link (OTP), sent/error states
-- src/routes/(app)/+layout.svelte — auth guard: getSession() → /login if no session; tagUserProfileWithSupabaseId(); onboarding_complete check → /onboarding; onAuthStateChange for TOKEN_REFRESHED + SIGNED_OUT
-- src/routes/+layout.svelte — added /login to bypass list (guard + isOnboarding derived)
-- src/lib/db.ts — supabase_user_id: string | null on UserProfile; tagUserProfileWithSupabaseId(); initUserProfile seeds it as null
-- src/components/layout/SyncStatusBadge.svelte — 5-state dot (local/synced/syncing/offline/error); pulse animation for syncing; click-when-local opens Google Drive connect modal; connectGoogleDrive() calls signInWithOAuth with drive.appdata scope; updateUserSettings on connect
-- src/app.css — --color-error: #EF4444 added
-- src/lib/i18n.ts — login.* keys (9 keys), sync.local/syncing/error/connectTitle/connectCta/connectCancel (6 keys)
-- src/lib/sync/SyncService.ts — SyncAdapter interface, SyncPayload/SyncResult/SyncStatus types, SyncService class (setAdapter/push/pull/getStatus), singleton export
-- src/lib/sync/GoogleDriveAdapter.ts — full Drive appdata implementation; push chunks thoughts 500/file (object-level, never string-sliced); upserts via multipart upload; manifest as commit marker; deleteStaleChunks on push; pull reassembles from manifest+chunks; 401 → token_expired; never throws
+Phase 7 — AAA UI & The Adaptive Shell (complete):
+- Settings page, font size, sidebar resize persistence, pinned thoughts, toasts
+
+Phase 8 — The Hybrid Editor & Shortcut Engine (complete):
+- ShortcutManager.ts — global keydown manager with user-configurable bindings
+- DocumentOutline.svelte — headings panel (400ms poll, syntaxTree ATXHeading1/2/3)
+- embedWidget.ts — block-level transclusion (![[Title]] → embed cards with stage pill + snippet)
+- editorContext.ts — shared EditorView via Svelte context
+
+Phase 9 — Graph Intelligence & Widgets (complete):
+- graphWorker.ts — focusStage/clearFocusStage messages with forceX/forceY (semantic gravity)
+- graphWorker.ts — computeHulls() using d3-polygon polygonHull, sent with positions
+- GraphCanvas.svelte — hull drawing (faint coloured blobs), getComputedStyle colour resolution (FIX-18/FIX-24)
+- GraphCanvas.svelte — $effect for uiStore.focusedStageId → worker focusStage messages
+- GraphCanvas.svelte — right-click context menu via handleContextMenu + NodeContextMenu
+- NodeContextMenu.svelte — Open, Change Stage (submenu), Pin/Unpin, Delete
+- PipelineMomentum.svelte — sidebar progress bars per stage (scaleX animation, FIX-19/FIX-25)
+- uiStore.svelte.ts — added focusedStageId field
+- Sidebar.svelte — stage filter now sets uiStore.focusedStageId, PipelineMomentum added
+- app.css — --momentum-bar-width: 180px
+- i18n.ts — context.open/changeStage/pin/unpin/delete, momentum.label keys
 
 ---
 
 ## Files created or modified this session
 
-- `src/lib/supabase.ts` (new)
-- `src/routes/login/+page.svelte` (new)
-- `src/routes/(app)/+layout.svelte` (modified — auth guard added to existing search-index layout)
-- `src/routes/+layout.svelte` (modified — /login bypass)
-- `src/lib/db.ts` (modified — supabase_user_id field + tagUserProfileWithSupabaseId)
-- `src/components/layout/SyncStatusBadge.svelte` (new)
-- `src/app.css` (modified — --color-error)
-- `src/lib/i18n.ts` (modified — login.* and sync.* keys)
-- `src/lib/sync/SyncService.ts` (new)
-- `src/lib/sync/GoogleDriveAdapter.ts` (new)
+### Phase 9 (new files)
+- `src/components/graph/NodeContextMenu.svelte`
+- `src/components/layout/PipelineMomentum.svelte`
+- `snapshots/phase-9-tests.log`
+- `snapshots/phase-9-checklist.md`
+
+### Phase 9 (modified files)
+- `src/workers/graphWorker.ts` — forceX/forceY, focusStage/clearFocusStage, polygonHull, computeHulls
+- `src/components/graph/GraphCanvas.svelte` — hulls, context menu, focusedStageId $effect
+- `src/lib/stores/uiStore.svelte.ts` — focusedStageId
+- `src/components/layout/Sidebar.svelte` — uiStore.focusedStageId, PipelineMomentum import
+- `src/app.css` — --momentum-bar-width
+- `src/lib/i18n.ts` — context menu + momentum keys
+- `docs/progress.md` — Phase 9 complete + decisions log
 
 ---
 
@@ -68,12 +82,25 @@ Phase 5 — Auth (complete):
 ### Phase 4
 - `src/workers/graphWorker.ts`, `src/components/graph/GraphNode.ts`, `GraphEdge.ts`, `GraphCanvas.svelte`
 - `src/routes/(app)/map/+page.svelte`
-- `src/lib/db.ts` — getEdgesByLibrary()
 
 ### Phase 5
 - `src/lib/supabase.ts`, `src/routes/login/+page.svelte`
 - `src/components/layout/SyncStatusBadge.svelte`
 - `src/lib/sync/SyncService.ts`, `src/lib/sync/GoogleDriveAdapter.ts`
+
+### Phase 6
+- Sync wiring in (app)/+layout.svelte
+
+### Phase 7
+- `src/routes/(app)/settings/+page.svelte`
+- `src/lib/stores/toastStore.svelte.ts`, `src/components/layout/ToastManager.svelte`
+
+### Phase 8
+- `src/lib/ShortcutManager.ts`, `src/lib/editorContext.ts`, `src/lib/embedWidget.ts`
+- `src/components/editor/DocumentOutline.svelte`
+
+### Phase 9
+- `src/components/graph/NodeContextMenu.svelte`, `src/components/layout/PipelineMomentum.svelte`
 
 ---
 
@@ -81,45 +108,37 @@ Phase 5 — Auth (complete):
 
 npm run check: PASSING (0 errors, 0 warnings)
 npm run test: 42 tests passing (3 test files)
-Last git commit: feat(phase-6): sync engine — SyncService + GoogleDriveAdapter (8221def)
-Last push: origin/master at 465e608 (8221def not yet pushed)
+Last git commit: pending (Phase 9 not yet committed)
 Live URL: not yet deployed
 
 ---
 
-## Architecture critical notes (read before any Phase 6 work)
+## Architecture critical notes
 
-**Auth guard flow (important for Phase 6):**
-1. `src/routes/+layout.svelte` onMount: skips guard for /onboarding and /login; otherwise checks getUserProfile() + onboarding_complete → /onboarding
-2. `src/routes/(app)/+layout.svelte` onMount: getSession() → /login; tagUserProfileWithSupabaseId; getUserProfile().onboarding_complete → /onboarding; then sets up onAuthStateChange
+**Semantic Gravity:**
+- uiStore.focusedStageId drives both Sidebar highlight and GraphCanvas worker messages
+- Worker applies forceX/forceY with per-node strength function (0.3 pull / -0.1 push)
+- clearFocusStage removes gravity forces entirely
 
-**GoogleDriveAdapter internals:**
-- Access token from: `supabase.auth.getSession()` → `session.provider_token` (the Google OAuth token, not the Supabase JWT)
-- Files live in Drive `appDataFolder` space (invisible to user in Drive UI)
-- Manifest (`flought-sync-manifest.json`) is written LAST — acts as commit marker. If push fails mid-way, stale manifest from previous sync remains valid
-- Edges are stored ONLY in chunk-0. On pull, edges come from chunk-0 only
-- deleteStaleChunks runs after all chunks upload but before manifest — ensures no orphan chunk files if chunk count decreases
+**Convex Hulls (FIX-18/FIX-24):**
+- CSS variables resolved via getComputedStyle on main thread in onMount
+- Worker computes hull coordinates only; main thread maps stageId → colour
+- polygonHull returns null for <3 points or collinear points — handled gracefully
 
-**SyncService wiring (not done yet):**
-- GoogleDriveAdapter is created but NOT wired to syncService yet
-- SyncStatusBadge receives `status` as a prop — caller must derive it from syncService.getStatus()
-- The connect flow (SyncStatusBadge → signInWithOAuth + updateUserSettings) sets sync_connected=true in Dexie but does NOT call syncService.setAdapter() — that wiring must happen in (app)/+layout.svelte after session check
-- CLAUDE.md rule 7: ALL sync goes through SyncService.ts — never call Drive API directly from components
+**NodeContextMenu:**
+- Right-click on graph canvas → hit test → shows floating menu at click position
+- Uses invisible backdrop for click-outside dismissal
+- Pin/unpin reads fresh userSettings before toggling (not stale cache)
 
----
-
-## Open decisions
-
-- Capacitor init skipped — run `npx cap init Flought com.flought.app --web-dir=build` after first `npm run build`
-- Phase 6 sync interval: pull on app open; push 30s after last write (debounce). Do NOT push on every keypress.
-- Conflict resolution: last-write-wins by `updated_at`. No CRDTs (explicitly out of scope per CLAUDE.md).
-- uiStore does NOT yet have a syncStatus field. Add `syncStatus: 'local' as SyncStatus` to uiStore before wiring Sidebar.
+**Remind next session (Phase 10):**
+- "Before writing any native API code, resolve the color-mix() debt logged in [PHASE 7] decisions."
+- Pre-existing hover transition patterns (background, color, border-color) throughout components — acceptable for V1 but clean up if performance testing flags them.
 
 ---
 
 ## Known issues
 
-None. 0 errors, 0 warnings.
+None. 0 errors, 0 warnings, 42/42 tests passing.
 
 ---
 
@@ -128,9 +147,9 @@ None. 0 errors, 0 warnings.
 - `uiStore.svelte.ts` (not `.ts`) — $state rune only works in Svelte-processed files
 - Route group `(app)` strips from URL — `src/routes/(app)/map/` serves `/map`
 - searchWorker lives in `uiStore.searchWorker` — avoids prop drilling across route group layouts
-- GraphCanvas relative import from `(app)/map/` is 3 levels: `'../../../components/graph/GraphCanvas.svelte'`
 - D3 simulation runs to completion synchronously in worker; posts positions ONCE
-- SyncStatusBadge is a `<button>` (not a `<span>`) — needed for click handler; cursor:default unless status=local
+- d3-polygon added as dependency in Phase 9 for polygonHull
+- HULL_COLOUR is populated once on mount — if theme changes at runtime, hull colours won't update (acceptable for V1, single theme)
 
 ---
 

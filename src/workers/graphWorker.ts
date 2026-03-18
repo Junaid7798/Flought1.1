@@ -7,6 +7,8 @@
  *   { type: 'drag',     id: string, fx: number, fy: number }
  *   { type: 'dragEnd',  id: string }
  *   { type: 'addNode',  node: NodeData }
+ *   { type: 'focusStage', stageId: number }
+ *   { type: 'clearFocusStage' }
  *
  * Messages OUT:
  *   { type: 'positions', buffer: Float32Array, nodeIndex: Record<string, number> }
@@ -17,9 +19,12 @@ import {
   forceManyBody,
   forceLink,
   forceCenter,
+  forceX,
+  forceY,
   type SimulationNodeDatum,
   type SimulationLinkDatum,
 } from 'd3-force';
+import { polygonHull } from 'd3-polygon';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,13 +54,17 @@ type InMessage =
   | { type: 'simulate'; nodes: NodeData[]; edges: EdgeData[] }
   | { type: 'drag'; id: string; fx: number; fy: number }
   | { type: 'dragEnd'; id: string }
-  | { type: 'addNode'; node: NodeData };
+  | { type: 'addNode'; node: NodeData }
+  | { type: 'focusStage'; stageId: number }
+  | { type: 'clearFocusStage' };
 
 // ── State ────────────────────────────────────────────────────────────────────
 
 const ALPHA_DECAY = 0.028;
 const MANY_BODY_STRENGTH = -200;
 const LINK_DISTANCE = 120;
+const GRAVITY_FOCUS_STRENGTH = 0.3;
+const GRAVITY_PUSH_STRENGTH = -0.1;
 
 let nodes: SimNode[] = [];
 let edges: SimEdge[] = [];
@@ -69,6 +78,29 @@ function nodeMap(): Map<string, SimNode> {
   return new Map(nodes.map((n) => [n.id, n]));
 }
 
+function computeHulls(): Record<number, [number, number][]> {
+  // Group node positions by meta_state
+  const groups = new Map<number, [number, number][]>();
+  for (const n of nodes) {
+    const pts = groups.get(n.meta_state);
+    const pt: [number, number] = [n.x ?? 0, n.y ?? 0];
+    if (pts) {
+      pts.push(pt);
+    } else {
+      groups.set(n.meta_state, [pt]);
+    }
+  }
+
+  const hulls: Record<number, [number, number][]> = {};
+  for (const [stageId, pts] of groups) {
+    // polygonHull needs ≥3 non-collinear points
+    if (pts.length < 3) continue;
+    const hull = polygonHull(pts);
+    if (hull) hulls[stageId] = hull;
+  }
+  return hulls;
+}
+
 function postPositions() {
   const nodeIndex: Record<string, number> = {};
   const buffer = new Float32Array(nodes.length * 2);
@@ -79,7 +111,8 @@ function postPositions() {
     buffer[i * 2 + 1] = nodes[i].y ?? 0;
   }
 
-  self.postMessage({ type: 'positions', buffer, nodeIndex });
+  const hulls = computeHulls();
+  self.postMessage({ type: 'positions', buffer, nodeIndex, hulls });
 }
 
 function buildSimulation(): ReturnType<typeof forceSimulation<SimNode>> {
@@ -107,6 +140,28 @@ function runToCompletion(s: ReturnType<typeof forceSimulation<SimNode>>) {
     s.tick();
   }
   postPositions();
+}
+
+// ── Semantic Gravity ─────────────────────────────────────────────────────────
+
+function applyGravity(s: ReturnType<typeof forceSimulation<SimNode>>, stageId: number) {
+  s.force(
+    'gravityX',
+    forceX<SimNode>(0).strength((d) =>
+      d.meta_state === stageId ? GRAVITY_FOCUS_STRENGTH : GRAVITY_PUSH_STRENGTH
+    ),
+  );
+  s.force(
+    'gravityY',
+    forceY<SimNode>(0).strength((d) =>
+      d.meta_state === stageId ? GRAVITY_FOCUS_STRENGTH : GRAVITY_PUSH_STRENGTH
+    ),
+  );
+}
+
+function clearGravity(s: ReturnType<typeof forceSimulation<SimNode>>) {
+  s.force('gravityX', null);
+  s.force('gravityY', null);
 }
 
 // ── Message handler ──────────────────────────────────────────────────────────
@@ -176,6 +231,24 @@ self.onmessage = (e: MessageEvent<InMessage>) => {
         sim = buildSimulation();
         runToCompletion(sim);
       }
+      break;
+    }
+
+    case 'focusStage': {
+      if (!sim) {
+        sim = buildSimulation();
+      }
+      applyGravity(sim, msg.stageId);
+      sim.alpha(0.4).restart().stop();
+      runToCompletion(sim);
+      break;
+    }
+
+    case 'clearFocusStage': {
+      if (!sim) break;
+      clearGravity(sim);
+      sim.alpha(0.4).restart().stop();
+      runToCompletion(sim);
       break;
     }
   }
