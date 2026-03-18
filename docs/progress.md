@@ -3,7 +3,7 @@
 ## Phase status
 
 - [x] Phase 0 — Shell & Pipeline (complete 2026-03-18)
-- [ ] Phase 1 — Data Layer
+- [x] Phase 1 — Data Layer (complete 2026-03-18)
 - [ ] Phase 2 — Capture UI & Onboarding
 - [ ] Phase 3 — Editor
 - [ ] Phase 4 — Graph
@@ -13,7 +13,7 @@
 
 ## Current
 
-Phase 1 — Data Layer. Next: Task 1.1 — src/lib/db.ts (full Dexie schema).
+Phase 2 — Capture UI & Onboarding. Next: Task 2.1 — src/lib/blueprints.ts (expand full blueprint data, already stubbed).
 
 ---
 

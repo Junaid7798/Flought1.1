@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(node -e \"const s = require\\(''./node_modules/@supabase/supabase-js/package.json''\\); console.log\\(s.name, s.version\\)\")",
+      "Bash(npm run:*)"
+    ]
+  }
+}

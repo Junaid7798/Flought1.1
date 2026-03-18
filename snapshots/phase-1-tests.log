@@ -1,0 +1,21 @@
+Phase 1 — Data Layer — Test Run Snapshot
+Date: 2026-03-18
+Vitest: v4.1.0
+
+> flought-v2@0.0.1 test
+> vitest run
+
+ RUN  v4.1.0  E:/Flought V2
+
+ Test Files  1 passed (1)
+      Tests  22 passed (22)
+   Start at  10:02:11
+   Duration  858ms (transform 53ms, setup 0ms, import 100ms, tests 79ms, environment 562ms)
+
+Test suites:
+  ✓ createThought        (4 tests)
+  ✓ updateThought        (3 tests)
+  ✓ softDeleteThought    (3 tests)
+  ✓ createEdge + getEdgesForThought  (4 tests)
+  ✓ rebuildEdgesForThought           (4 tests)
+  ✓ initUserProfile      (4 tests)
