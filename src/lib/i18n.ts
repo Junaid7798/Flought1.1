@@ -15,6 +15,23 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'onboarding.question': 'What will you use Flought for?',
   'onboarding.work': 'Work',
   'onboarding.personal': 'Personal',
+  'onboarding.name.label': 'What should we call you?',
+  'onboarding.name.placeholder': 'Your name',
+  'onboarding.name.cta': 'Continue',
+  'onboarding.category.label': 'How will you use Flought?',
+  'onboarding.category.work.sub': 'Projects, clients, research & more',
+  'onboarding.category.personal.sub': 'Journaling, ideas & personal growth',
+  'onboarding.blueprint.label': 'Pick your starting point',
+  'onboarding.blueprint.sub': 'You can change everything later.',
+  'brand.tagline': 'Think in graphs.',
+  'pipeline.label': 'Pipeline',
+  'library.new': 'New library name…',
+  'library.create': 'Create library',
+  'sync.never': 'Never synced',
+  'sync.offline': 'Not connected',
+  'sync.justNow': 'Synced just now',
+  'sync.oneMin': 'Synced 1 min ago',
+  'sync.minsAgo': 'Synced {n} min ago',
 };
 
 // Placeholder: once userSettings exists in Dexie, read string_overrides here.

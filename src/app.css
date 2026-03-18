@@ -15,6 +15,10 @@
   --text-muted:     #475569;
   --border:         rgba(255,255,255,0.06);
   --border-strong:  rgba(255,255,255,0.14);
+  --shadow-dropdown: rgba(0,0,0,0.4);
+  --overlay-backdrop: rgba(6,6,14,0.7);
+  --brand-tint:     rgba(34,211,238,0.1);
+  --brand-glow:     rgba(34,211,238,0.12);
 }
 
 body {
