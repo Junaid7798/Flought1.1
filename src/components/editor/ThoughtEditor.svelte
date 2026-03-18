@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, setContext } from 'svelte';
 	import { EditorView, keymap } from '@codemirror/view';
 	import { EditorState } from '@codemirror/state';
+	import { EDITOR_VIEW_KEY, type EditorViewGetter } from '$lib/editorContext';
 	import { markdown } from '@codemirror/lang-markdown';
 	import { defaultKeymap, historyKeymap } from '@codemirror/commands';
 	import { history } from '@codemirror/commands';
@@ -16,6 +17,11 @@
 		thermalPillField, thermalPillTheme, updateThoughtStates,
 		type ThoughtStateMap,
 	} from '$lib/thermalPillWidget';
+	import {
+		embedField, embedTheme, updateEmbedMap, makeSnippet,
+		type EmbedMap,
+	} from '$lib/embedWidget';
+	import { getThoughtsByLibrary } from '$lib/db';
 	import { ANIMATION_CONFIG } from '$lib/config';
 	import SlashMenu, { type SlashItem } from './SlashMenu.svelte';
 
@@ -45,9 +51,10 @@
 	let isTyping = $state(false);
 	let typingFadeTimer: ReturnType<typeof setTimeout> | null = null;
 
-	// ── Live thought-state subscription ──────────────────────────────────────
+	// ── Live thought-state + embed subscriptions ─────────────────────────────
 
 	let stateMapSub: { unsubscribe(): void } | null = null;
+	let embedSub: { unsubscribe(): void } | null = null;
 
 	// ── CodeMirror theme ──────────────────────────────────────────────────────
 
@@ -137,6 +144,11 @@
 		view?.focus();
 	}
 
+	// ── Context — expose EditorView to child components ───────────────────────
+
+	const getView: EditorViewGetter = () => view;
+	setContext(EDITOR_VIEW_KEY, getView);
+
 	// ── Mount / destroy ───────────────────────────────────────────────────────
 
 	onMount(() => {
@@ -153,6 +165,20 @@
 			view.dispatch({ effects: [updateThoughtStates.of(map)] });
 		});
 
+		// Subscribe to full thoughts list for embed card decorations (![[Title]])
+		embedSub = getThoughtsByLibrary(thought.library_id).subscribe((thoughts) => {
+			if (!view) return;
+			const map: EmbedMap = new Map(
+				thoughts
+					.filter((t) => t.id !== thought.id)
+					.map((t) => [
+						t.title.toLowerCase(),
+						{ title: t.title, meta_state: t.meta_state, snippet: makeSnippet(t.content) },
+					])
+			);
+			view.dispatch({ effects: [updateEmbedMap.of(map)] });
+		});
+
 		const startState = EditorState.create({
 			doc: thought.content,
 			extensions: [
@@ -164,6 +190,8 @@
 				checkboxTheme,
 				thermalPillField,
 				thermalPillTheme,
+				embedField,
+				embedTheme,
 				midnightTheme,
 				EditorView.lineWrapping,
 				EditorView.updateListener.of((update) => {
@@ -222,6 +250,7 @@
 			typingFadeTimer = null;
 		}
 		stateMapSub?.unsubscribe();
+		embedSub?.unsubscribe();
 		const content = view?.state.doc.toString() ?? '';
 		flushContent(content);
 		flushEdges(content);

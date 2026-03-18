@@ -10,11 +10,12 @@
 - [x] Phase 5 — Auth ✓ (complete 2026-03-18)
 - [x] Phase 6 — Sync Engine ✓ (complete 2026-03-18)
 - [x] Phase 7 — AAA UI & The Adaptive Shell ✓ (complete 2026-03-19)
+- [x] Phase 8 — The Hybrid Editor & Shortcut Engine ✓ (complete 2026-03-19)
 - [ ] Phase 6.5 — Store Submissions
 
 ## Current
 
-Phase 6.5 — Store Submissions. Capacitor (Android/iOS) and Tauri (Windows/Mac) packaging.
+Phase 9 — Graph Intelligence & Widgets. Next: 9.1 Semantic Gravity (focusStage force pull), 9.2 Convex Hull clustering, 9.3 Node Context Menu + PipelineMomentum sidebar widget.
 
 ---
 
@@ -67,3 +68,16 @@ Alternative: portal into body via action — rejected as over-engineering for V1
 Reason: matches uiStore pattern; avoids a separate Svelte store mechanism. Array mutations
 (push/splice) are reactive because $state uses Proxy. Alternative: writable() array — rejected
 per Rule 1 (Svelte 5 Runes only).
+[PHASE 8] Decision: ShortcutManager uses a closure-based singleton (module-level state) not a class.
+Reason: matches the uiStore/toastStore pattern; no instantiation needed since there is exactly one
+global keydown listener. Alternative: class with static methods — rejected as unnecessary indirection.
+
+[PHASE 8] Decision: DocumentOutline polls at 400ms interval instead of subscribing to EditorView updateListener.
+Reason: EditorView.updateListener is already set in ThoughtEditor and cannot be shared without coupling.
+A 400ms poll is imperceptible for an outline panel and keeps components fully decoupled.
+Alternative: emit an outline-update event via eventBus — rejected as over-engineering for a read-only panel.
+
+[PHASE 8] Decision: ![[Title]] embed widget uses getThoughtsByLibrary() (full content) rather than getThoughtStates() (lightweight).
+Reason: embed cards display a 2-line body snippet which requires the content field.
+The cost is acceptable because this liveQuery is scoped to the active library only.
+Alternative: store snippet separately in Dexie — rejected; premature optimisation for V1.

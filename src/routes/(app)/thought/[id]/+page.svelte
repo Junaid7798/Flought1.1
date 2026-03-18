@@ -9,6 +9,7 @@
 	import { $t as t } from '$lib/i18n';
 	import FrontmatterMask from '../../../../components/editor/FrontmatterMask.svelte';
 	import ThoughtEditor from '../../../../components/editor/ThoughtEditor.svelte';
+	import DocumentOutline from '../../../../components/editor/DocumentOutline.svelte';
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
@@ -82,9 +83,16 @@
 		<!-- YAML properties panel -->
 		<FrontmatterMask thoughtId={thought.id} />
 
-		<!-- CodeMirror body editor -->
+		<!-- Editor + Outline panel -->
 		<div class="editor-region">
-			<ThoughtEditor thought={thought} searchWorker={uiStore.searchWorker} />
+			<div class="editor-main">
+				<ThoughtEditor thought={thought} searchWorker={uiStore.searchWorker} />
+			</div>
+			<!-- Document outline — desktop only, hidden on mobile -->
+			<aside class="outline-panel" aria-label="Document outline">
+				<p class="outline-heading">Outline</p>
+				<DocumentOutline />
+			</aside>
 		</div>
 	</div>
 {/if}
@@ -157,6 +165,39 @@
 		flex: 1;
 		min-height: 0;
 		overflow: hidden;
+		display: flex;
+	}
+
+	.editor-main {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+	}
+
+	/* Outline panel — desktop sidebar, hidden on mobile */
+	.outline-panel {
+		width: 200px;
+		flex-shrink: 0;
+		border-left: 1px solid var(--border);
+		overflow-y: auto;
+		background: var(--bg-panel);
+		display: none;
+	}
+
+	.outline-heading {
+		font-size: 0.6875rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-muted);
+		padding: 0.75rem 0.75rem 0;
+		margin: 0;
+	}
+
+	@media (min-width: 1100px) {
+		.outline-panel {
+			display: block;
+		}
 	}
 
 	/* Mobile: full-screen with back button visible */
