@@ -6,14 +6,14 @@
 - [x] Phase 1 — Data Layer (complete 2026-03-18)
 - [x] Phase 2 — Capture UI & Onboarding (complete 2026-03-18)
 - [x] Phase 3 — Editor ✓ (complete 2026-03-18)
-- [ ] Phase 4 — Graph
+- [x] Phase 4 — Graph ✓ (complete 2026-03-18)
 - [ ] Phase 5 — Auth
 - [ ] Phase 6 — Sync Engine
 - [ ] Phase 6.5 — Store Submissions
 
 ## Current
 
-Phase 4 — Graph. Canvas 2D renderer, D3 force simulation in graphWorker.ts, focus/neighbourhood mode.
+Phase 5 — Auth. Supabase authentication, login/signup flow, session management.
 
 ---
 

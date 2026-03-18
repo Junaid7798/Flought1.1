@@ -43,6 +43,8 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'search.untitled': 'Untitled',
   'search.empty': 'No results',
   'map.placeholder': 'Graph coming in Phase 4.',
+  'map.showAll': 'Show full graph',
+  'map.stats': '{total} thoughts · showing {visible}',
 };
 
 // Placeholder: once userSettings exists in Dexie, read string_overrides here.

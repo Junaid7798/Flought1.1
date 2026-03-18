@@ -187,6 +187,16 @@ export async function softDeleteEdge(id: string): Promise<void> {
 	eventBus.emit({ type: 'edge.updated', payload: { id } });
 }
 
+export function getEdgesByLibrary(libraryId: string) {
+	return liveQuery(() =>
+		db.edges
+			.where('library_id')
+			.equals(libraryId)
+			.filter((e) => !e.is_deleted)
+			.toArray()
+	);
+}
+
 export async function getEdgesForThought(thoughtId: string): Promise<Edge[]> {
 	const [asSrc, asTgt] = await Promise.all([
 		db.edges.where('source_id').equals(thoughtId).filter((e) => !e.is_deleted).toArray(),
