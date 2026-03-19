@@ -70,6 +70,23 @@ UI/UX Polish — Medium (complete 2026-03-19):
 - `snapshots/phase-10-1-checklist.md`
 - `snapshots/phase-10-1-tests.log`
 
+### Phase 10.2 (new files)
+- `snapshots/phase-10-2-checklist.md`
+
+### UI/UX Polish (modified files)
+- `src/components/capture/SparkInput.svelte` — #34 placeholder opacity
+- `src/components/editor/FrontmatterMask.svelte` — #9 hover, #39 min-height
+- `src/components/graph/NodeContextMenu.svelte` — haptics
+- `src/components/layout/MobileDock.svelte` — #6 focus-visible, #15 transition
+- `src/components/layout/PipelineMomentum.svelte` — #18 h2, #19 role="img"
+- `src/components/layout/Sidebar.svelte` — #3 #4 #13 #18 #25 #33 #35
+- `src/components/layout/ToastManager.svelte` — #37 shadow var
+- `src/components/search/CommandPalette.svelte` — #16 #24 #32
+- `src/routes/(app)/map/+page.svelte` — #29 empty state
+- `src/routes/(app)/settings/+page.svelte` — #26 #31
+- `src/routes/(app)/thought/[id]/+page.svelte` — #7 share hover
+- `src/routes/+layout.svelte` — drag-and-drop
+
 ---
 
 ## All files by phase (cumulative)
@@ -125,7 +142,8 @@ UI/UX Polish — Medium (complete 2026-03-19):
 
 npm run check: PASSING (0 errors, 0 warnings, 4120 files)
 npm run test: 42 tests passing (3 test files)
-Last git commit: phase-9-verified (Phase 10 Task 10.1 not yet committed)
+Last git commit: ccf3228 — feat(phase-10): native APIs, drag-and-drop, UI/UX polish — 20 fixes
+Pushed to: https://github.com/Junaid7798/Flought1.1 (master)
 Live URL: not yet deployed
 
 ---
