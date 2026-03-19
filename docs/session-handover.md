@@ -9,125 +9,172 @@
 
 ## Resume from here
 
-All 6 feature groups (A–F) from featurev1.md are COMPLETE.
-Next task: git commit + push, then decide next milestone (V1 launch prep, bug sweep, or new feature design).
+This session was entirely **planning + research** — no code was written or committed.
+The next session should START IMPLEMENTING the production readiness plan.
+
+The full implementation plan is at:
+`C:\Users\Junaid\.claude\plans\peaceful-sparking-floyd.md`
+
+**Read that plan file first.** It has 8 phases with exact code snippets. Execute Phase 1 first.
 
 ---
 
-## Completed this session (2026-03-19)
+## What was decided this session (2026-03-19)
 
-### Group E — Context Menu Expansion (complete)
+### Decision 1 — Complete UI redesign approved
+User wants a full redesign: ultra-minimal, premium dark/white glass, subtle gradients, sharp, readable.
+Reference apps: Obsidian + Linear + Raycast.
+Dual-theme: **Midnight (dark)** + **Blanc (light)** — both fully designed, not afterthoughts.
 
-1. **`src/workers/graphWorker.ts`** — Added `settle` message type + handler (alpha 0.1 restart)
-2. **`src/components/capture/SparkInput.svelte`** — After `createThought()`, if `uiStore.sparkInputPrefillCoords !== null`, calls `updateThought(newId, { x_pos, y_pos })` then clears coords; passes `is_triaged: false` (D.3 overlap — see below)
-3. **E.1 + E.2 wiring verified** — CanvasContextMenu, NodeContextMenu Copy Wikilink, resetViewport, settleGraph all present from previous session
+### Decision 2 — Font: switch Geist → Inter
+Inter has better weight range (300–700), sharper at small sizes, industry standard for this style.
+`npm install @fontsource/inter` will be needed, or use Google Fonts CDN link.
 
-### Group D — Sidebar Widgets (complete)
+### Decision 3 — Keep `#22D3EE` cyan as brand accent
+Works on both themes. Pipeline colors (inbox/queue/forge/archive) also unchanged.
 
-1. **`src/components/layout/ThermalCalendar.svelte`** (new)
-   - 28-day activity grid, 7-column CSS Grid, 10×10px cells with 3px gap
-   - Level mapping: 0=none, 1=1–2 thoughts, 2=3–5, 3=6–10, 4=11+
-   - Colours: `rgba(r,g,b,alpha)` resolved from `--color-brand` on mount — no hex in component
-   - Mounted in Sidebar below PipelineMomentum
+### Decision 4 — Keep layout structure (sidebar + topbar + canvas)
+No navigation restructure. Fix the mobile editor tab bug. Add icon-only collapsed sidebar rail.
 
-2. **`src/components/layout/SerendipityCollider.svelte`** (new)
-   - Restores pair from localStorage if within 24h, rolls new pair otherwise
-   - `collisionFilter = null` — V2 hook for semantic scoring
-   - Create Link button calls `createEdge()`, hides widget for rest of day
-   - Appear animation: `opacity 0→1 + translateY(4px→0)`, 200ms (Rule 9)
-   - Mounted in Sidebar below ThermalCalendar
+### Decision 5 — Feature discovery page is the "internal store" the user wants
+A `/features` route with 12 feature cards. Each card: icon, title, description, "Try it" button.
+Entry points: Topbar `?` button, Settings bottom link, after first onboarding.
 
-3. **D.3 — Capture Triage Dots**
-   - `src/lib/db.ts`: `createThought()` accepts optional `is_triaged = true` param
-   - `src/components/capture/SparkInput.svelte`: passes `is_triaged: false`
-   - `src/components/layout/Sidebar.svelte`: triage dot shown on pinned + recent rows when `is_triaged === false`; `@keyframes triage-pulse` uses opacity only (Rule 9)
-   - `src/routes/(app)/thought/[id]/+page.svelte`: 5000ms timer calls `markTriaged(id)` if thought not triaged; cleared in `onDestroy`
-
-### Group F — Settings Expansion (verified already complete)
-
-All 4 sub-features (Theme Toggle, Stage Labels, Keyboard Shortcuts, Graph Controls Panel) confirmed present in `settings/+page.svelte` and `map/+page.svelte` from previous session.
+### Decision 6 — PKM gap analysis completed
+Compared Flought against Obsidian/Linear/Raycast. Key gaps identified (see plan file).
 
 ---
 
-## All Groups Status
+## Gap analysis summary (what users expect that Flought is missing)
 
-| Group | Status | Key files |
-|-------|--------|-----------|
-| A — Schema | ✅ Complete | db.ts v3, config.ts FEATURE_CONFIG, i18n.ts, +layout.svelte |
-| B — CM6 Editor | ✅ Complete | extensions/*.ts, ThoughtEditor.svelte, BacklinkFooter.svelte |
-| C — Graph Integrity | ✅ Complete | janitorWorker.ts, janitorService.ts, graphWorker.ts (ghosts), db.ts (aliases) |
-| D — Sidebar Widgets | ✅ Complete | ThermalCalendar.svelte, SerendipityCollider.svelte, Sidebar.svelte, thought/[id] |
-| E — Context Menus | ✅ Complete | CanvasContextMenu.svelte, NodeContextMenu.svelte, graphWorker.ts (settle), SparkInput.svelte |
-| F — Settings | ✅ Complete | settings/+page.svelte (theme/labels/shortcuts), GraphControlsPanel.svelte, map/+page.svelte |
+| Gap | Severity | Phase in plan |
+|-----|----------|---------------|
+| No word count in editor | Critical | Phase 3C |
+| No mobile formatting toolbar above keyboard | Critical | Phase 3B |
+| Android Editor tab opens blank | Critical | Phase 2C |
+| Graph labels invisible at default zoom | High | Phase 4A |
+| No icon-only sidebar rail when collapsed | High | Phase 2A |
+| Command palette has no UI component | Critical | Phase 5 |
+| No feature discovery page | High | Phase 6 |
+| No Sync/About/Data sections in settings | Medium | Phase 7 |
+| Topics in sidebar are display-only (no filter) | Medium | Not in this plan |
+| No staggered entrance animations | Polish | Phase 8 |
 
 ---
 
-## Build status
+## Build status (last known good)
 
 npm run check: PASSING (0 errors, 0 warnings, 4140 files)
 npm run test: 42 tests passing (3 test files)
-Last git commit: (pending — not committed this session)
+Last git commit: `467905e` — "feat(feature-v1): all 6 groups complete — Groups A–F" (pushed to master)
+Tag: `feature-v1-complete` pushed to GitHub (https://github.com/Junaid7798/Flought1.1)
+
+**No new code was committed this session.**
 
 ---
 
-## Architecture critical notes
+## The 8-phase implementation plan (summary)
 
-**ThermalCalendar colour resolution:**
-- `--color-brand` resolved via `getComputedStyle` on mount → parsed to `r,g,b` integers
-- Cell backgrounds use `rgba(r,g,b,alpha)` strings — safe across theme changes
+Full details with exact code are in the plan file. This is the execution order:
 
-**SerendipityCollider localStorage keys:**
-- `serendipity_last` — timestamp of last roll
-- `serendipity_a`, `serendipity_b` — thought IDs of current pair
-- `serendipity_accepted` — timestamp when user clicked Create Link (hides for 24h)
-- All cleared automatically when a new pair is rolled after 24h
+| Phase | What | Files | Notes |
+|-------|------|-------|-------|
+| 1 | CSS token system + Inter font | `app.css`, `app.html` | Do this FIRST — everything inherits |
+| 2A | Sidebar visual + icon rail | `Sidebar.svelte` | CSS + add icon rail HTML for collapsed state |
+| 2B | Topbar visual + ? button | `Topbar.svelte` | CSS + add `?` button linking to `/features` |
+| 2C | Mobile dock: fix editor bug + visual | `MobileDock.svelte` | Logic fix: Editor tab navigates to most recent thought |
+| 3A | Persistent formatting toolbar (desktop) | `thought/[id]/+page.svelte` | `ThoughtEditor` needs to expose `editorView` ref |
+| 3B | Mobile formatting toolbar above keyboard | `thought/[id]/+page.svelte` | Uses `@capacitor/keyboard` keyboardWillShow height |
+| 3C | Editor status bar (word count + saved time) | `thought/[id]/+page.svelte` | `$derived` from `thought.content` |
+| 3D | CM6 editor theme | `ThoughtEditor.svelte` | Update `EditorView.theme({})` to Inter + new colors |
+| 3E | YAML mask visual | `thought/[id]/+page.svelte` | Left accent bar, surface background |
+| 4A | Graph label threshold | `GraphNode.ts` | Lower to 0.42, add short label at 0.22 |
+| 4B | Node active ring + hub sizing | `GraphNode.ts` | Ring for active node, size by edge count |
+| 5 | Command palette UI | `CommandPalette.svelte` | CHECK if it exists first — may need to create |
+| 6 | Feature discovery page | `features/+page.svelte` (NEW) | 12 feature cards, grid layout, fly-in animation |
+| 7 | Settings: Sync + About + Data | `settings/+page.svelte` | 3 new accordions |
+| 8 | Animations everywhere | Sidebar, GraphCanvas, layout | Staggered rows, node fade-in, route transitions |
 
-**Triage dot design:**
-- Only SparkInput creates `is_triaged: false` thoughts
-- All other thought creation paths (blueprints, etc.) default `is_triaged: true`
-- Timer is stored in a module-level `let triageTimer` — cleared in `onDestroy` (no leak)
-- Dot uses `inline-block` with `vertical-align: middle` so it sits after the title text
+---
 
-**SerendipityCollider edge subscription:**
-- Uses `getEdgesByLibrary(libraryId).subscribe(...)` — calls `edgeSub.unsubscribe()` immediately after rolling the pair to avoid staying subscribed
-- If `unlinked.length === 0`, the subscribe callback returns without calling unsubscribe; however since the same libraryId liveQuery is reactive, subsequent edge changes won't trigger the roll again (one-shot pattern is advisory only — V1 acceptable)
+## Critical implementation notes for next session
 
-**createThought signature change:**
-- Added `is_triaged = true` as optional third parameter (default true)
-- All existing call sites unaffected (they omit the param)
-- Only SparkInput passes `false`
+### Phase 1 — CSS tokens
+- `--bg-canvas: #000000` is a NEW token (true black for graph canvas). Components currently using `--bg-deep` for canvas background need updating to `--bg-canvas`.
+- `--bg-elevated` is a NEW token — add this to both dark and light blocks.
+- Existing token names (`--bg-deep`, `--bg-panel`, `--border`, etc.) are kept — values change only.
+- After phase 1, `npm run check` first before touching anything else.
+
+### Phase 2C — Mobile editor fix (CRITICAL BUG)
+The Editor tab in MobileDock calls `selectTab('editor')` which only sets `uiStore.activeView = 'editor'`.
+It does NOT navigate to a thought route. So on Android, tapping Editor shows a blank screen.
+
+Fix: in `selectTab('editor')`:
+1. If `uiStore.focusedNodeId` is set → `await goto('/thought/' + uiStore.focusedNodeId)`
+2. Else → get most recent thought from `getThoughtsByLibrary(uiStore.activeLibraryId)`, sort by `updated_at`, `goto('/thought/' + recent.id)`
+3. If no thoughts exist → `uiStore.activeView = 'editor'` (show empty state)
+
+Import needed: `import { goto } from '$app/navigation'` and `import { getThoughtsByLibrary } from '$lib/db'`
+
+### Phase 3A — Formatting toolbar
+`ThoughtEditor.svelte` needs to expose its `EditorView` instance so the parent page can dispatch formatting transactions.
+Add `let editorViewRef = $state<EditorView | null>(null)` to ThoughtEditor, expose via a `bind:` prop or callback.
+`applyWrap(before, after)` in the page creates a CM6 transaction: replaces selection with `before + selected + after`.
+
+### Phase 5 — Command palette
+**Check first:** `src/components/layout/CommandPalette.svelte` — does it exist and have a search UI?
+If it exists but has no proper visual → update CSS only.
+If it does NOT exist → create it. The `commandPaletteOpen` state is already in `uiStore`.
+The `ShortcutManager` already binds ⌘K to open the palette.
+
+### Phase 6 — Feature page
+This is a new route: `src/routes/(app)/features/+page.svelte`
+It needs a corresponding `+page.ts` if there's a pattern of those in the codebase — check first.
+The 12 feature cards are defined as a static array (no DB reads needed).
+
+---
+
+## Architecture that must NOT change
+
+- All 12 CLAUDE.md rules remain in effect
+- No logic changes for phases 1, 2A, 2B, 3D, 3E, 4A, 4B, 7, 8 — CSS/JS visual only
+- Logic changes only in: phase 2C (dock fix), 3A/3B/3C (toolbar + word count), 5 (palette), 6 (new page)
+- No Dexie schema changes this plan
+- Rule 8 (no hex in components) — all new colors go in `app.css` as CSS vars only
+- Rule 9 (transform + opacity only) — all animations in plan comply already
+
+---
+
+## Non-obvious context (carry forward)
+
+- `uiStore.svelte.ts` (not `.ts`) — $state rune only works in Svelte-processed files
+- Route group `(app)` strips from URL — `src/routes/(app)/map/` serves `/map`
+- D3 simulation runs to completion synchronously in worker; posts positions ONCE
+- `$lib` alias is resolved by Vite even inside module workers
+- SerendipityCollider receives `thoughts` as a prop from Sidebar (same liveQuery, avoids second DB query)
+- ThermalCalendar receives `thoughts` prop — buckets by `updated_at` ISO string → timestamp
+- `capacitor.config.ts` exists (`appId: 'com.flought.app'`) but `android/`, `ios/`, `src-tauri/` directories do NOT exist yet (Phase 6.5 store submissions not started)
+- Cloudflare Pages deployment is already live (user confirmed)
+- Phase 6.5 (store submissions) is on hold at user's explicit request
 
 ---
 
 ## Files modified this session
 
-### New files
-- `src/components/layout/ThermalCalendar.svelte`
-- `src/components/layout/SerendipityCollider.svelte`
-
-### Modified files
-- `src/lib/db.ts` — `createThought()` optional `is_triaged` param
-- `src/components/capture/SparkInput.svelte` — `is_triaged: false`, coord placement
-- `src/components/layout/Sidebar.svelte` — ThermalCalendar + SerendipityCollider imports + triage dots
-- `src/routes/(app)/thought/[id]/+page.svelte` — `markTriaged` import + 5s triage timer
-- `src/workers/graphWorker.ts` — `settle` message type + handler
+None — this was a planning-only session.
 
 ---
 
-## Known issues
+## Known issues going into next session
 
-None. 0 errors, 0 warnings, 42/42 tests passing.
-
----
-
-## Non-obvious context
-
-- `uiStore.svelte.ts` (not `.ts`) — $state rune only works in Svelte-processed files
-- Route group `(app)` strips from URL — `src/routes/(app)/map/` serves `/map`
-- D3 simulation runs to completion synchronously in worker; posts positions ONCE
-- `$lib` alias is resolved by Vite even inside module workers — confirmed in vite.config.ts
-- SerendipityCollider receives `thoughts` as a prop from Sidebar (same liveQuery data) — avoids a second DB query
-- ThermalCalendar receives `thoughts` prop — buckets by `updated_at` field (ISO string → timestamp)
+| Issue | Location | Plan phase |
+|-------|----------|-----------|
+| Android Editor tab = blank screen | `MobileDock.svelte` selectTab() | Phase 2C |
+| Graph labels invisible at default zoom | `GraphNode.ts` LABEL_ZOOM_THRESHOLD | Phase 4A |
+| Command palette has no UI (⌘K does nothing visible) | `CommandPalette.svelte` | Phase 5 |
+| No persistent formatting toolbar in editor | `thought/[id]/+page.svelte` | Phase 3A |
+| No word count displayed | `thought/[id]/+page.svelte` | Phase 3C |
+| Sidebar collapsed = invisible (should be icon rail) | `Sidebar.svelte` | Phase 2A |
 
 ---
 
