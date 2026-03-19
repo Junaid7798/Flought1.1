@@ -3,6 +3,8 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!-- ⚠ Runs synchronously before first paint — prevents light-theme flash on reload -->
+		<script>try{var t=localStorage.getItem('flought_theme');if(t==='light')document.documentElement.classList.add('theme-light');}catch(e){}</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

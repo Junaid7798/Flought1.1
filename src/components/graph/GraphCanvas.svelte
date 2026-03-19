@@ -11,11 +11,12 @@
 		type Edge,
 	} from '$lib/db';
 	import { eventBus } from '$lib/eventBus';
-	import { PIPELINE_STATES, GRAPH_CONFIG, ANIMATION_CONFIG } from '$lib/config';
+	import { PIPELINE_STATES, GRAPH_CONFIG, ANIMATION_CONFIG, FEATURE_CONFIG } from '$lib/config';
 	import { drawNode } from './GraphNode';
 	import { drawEdge } from './GraphEdge';
 	import { getUserSettings } from '$lib/db';
 	import NodeContextMenu from './NodeContextMenu.svelte';
+	import CanvasContextMenu from './CanvasContextMenu.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -62,20 +63,36 @@
 	let thoughtsSub: { unsubscribe(): void } | null = null;
 	let edgesSub: { unsubscribe(): void } | null = null;
 	let unsubCreated: (() => void) | null = null;
+	let graphUnsubs: (() => void)[] = [];
 
 	// RAF throttle for drag
 	let dragRafPending = false;
 
-	// Context menu state
+	// Node context menu state
 	let contextMenuOpen = $state(false);
 	let contextMenuX = $state(0);
 	let contextMenuY = $state(0);
 	let contextNodeId = $state<string | null>(null);
+	let contextNodeTitle = $state('');
 	let contextNodeStage = $state(1);
 	let contextNodePinned = $state(false);
 
+	// Canvas context menu state
+	let canvasMenuOpen = $state(false);
+	let canvasMenuX = $state(0);
+	let canvasMenuY = $state(0);
+	let canvasMenuSimX = $state(0);
+	let canvasMenuSimY = $state(0);
+
 	// Hull data from worker
 	let hullData: Record<number, [number, number][]> = {};
+
+	// Ghost node metadata from worker
+	let ghostMap: Record<string, { title: string; isGhost: boolean }> = {};
+	let ghostOpacityFromWorker = FEATURE_CONFIG.GHOST_NODE_OPACITY;
+
+	// Resolved ghost colour (muted, from CSS var — resolved on main thread)
+	let ghostColour = '';
 
 	// ── Colour lookup ────────────────────────────────────────────────────────
 
@@ -86,9 +103,6 @@
 
 	// Resolved CSS colours for hull rendering (FIX-18/FIX-24: read on main thread)
 	const HULL_COLOUR: Record<number, string> = {};
-	const EDGE_COLOUR = 'rgba(255,255,255,0.15)';
-
-	const NODE_RADIUS = 6;
 
 	// ── Neighbourhood filter ─────────────────────────────────────────────────
 
@@ -152,15 +166,18 @@
 		worker.postMessage({
 			type: 'simulate',
 			nodes: nodes.map((t) => ({
-				id: t.id,
-				x: t.x_pos || undefined,
-				y: t.y_pos || undefined,
+				id:         t.id,
+				title:      t.title,
+				content:    t.content,
+				x:          t.x_pos || undefined,
+				y:          t.y_pos || undefined,
 				meta_state: t.meta_state,
 			})),
 			edges: edges.map((e) => ({
 				source: e.source_id,
 				target: e.target_id,
 			})),
+			ghostOpacity: FEATURE_CONFIG.GHOST_NODE_OPACITY,
 		});
 	}
 
@@ -183,16 +200,17 @@
 	}
 
 	function getNodeOpacity(id: string): number {
-		return focusOpacity.get(id) ?? (activeThoughtId ? GRAPH_CONFIG.nodeUnfocusedOpacity : GRAPH_CONFIG.nodeFocusOpacity);
+		return focusOpacity.get(id) ?? (activeThoughtId ? uiStore.graphDimStrength : GRAPH_CONFIG.nodeFocusOpacity);
 	}
 
 	function getEdgeOpacity(srcId: string, tgtId: string): number {
 		if (!activeThoughtId) return GRAPH_CONFIG.edgeFocusOpacity;
-		const srcOp = focusOpacity.get(srcId) ?? GRAPH_CONFIG.nodeUnfocusedOpacity;
-		const tgtOp = focusOpacity.get(tgtId) ?? GRAPH_CONFIG.nodeUnfocusedOpacity;
+		const dimStrength = uiStore.graphDimStrength;
+		const srcOp = focusOpacity.get(srcId) ?? dimStrength;
+		const tgtOp = focusOpacity.get(tgtId) ?? dimStrength;
 		const connected =
-			srcOp > GRAPH_CONFIG.nodeUnfocusedOpacity + 0.01 &&
-			tgtOp > GRAPH_CONFIG.nodeUnfocusedOpacity + 0.01;
+			srcOp > dimStrength + 0.01 &&
+			tgtOp > dimStrength + 0.01;
 		return connected ? GRAPH_CONFIG.edgeFocusOpacity : GRAPH_CONFIG.edgeUnfocusedOpacity;
 	}
 
@@ -237,7 +255,7 @@
 		ctx.clearRect(0, 0, w, h);
 
 		// Draw convex hull blobs underneath everything
-		drawHulls();
+		if (uiStore.graphShowHulls) drawHulls();
 
 		const { edges } = getFilteredData();
 
@@ -250,32 +268,43 @@
 			const [sx, sy] = worldToScreen(posBuffer[si * 2], posBuffer[si * 2 + 1]);
 			const [tx, ty] = worldToScreen(posBuffer[ti * 2], posBuffer[ti * 2 + 1]);
 
-			let colour = EDGE_COLOUR;
+			const edgeBaseColour = `rgba(255,255,255,${uiStore.graphEdgeOpacity})`;
+			let colour = edgeBaseColour;
 			let opacity = getEdgeOpacity(edge.source_id, edge.target_id);
 
 			// Connected edges use active node colour in focus mode
 			if (activeThoughtId && opacity > GRAPH_CONFIG.edgeUnfocusedOpacity + 0.001) {
 				const activeT = getThoughtById(activeThoughtId);
-				if (activeT) colour = PIPELINE_COLOUR[activeT.meta_state] ?? EDGE_COLOUR;
+				if (activeT) colour = PIPELINE_COLOUR[activeT.meta_state] ?? edgeBaseColour;
 			}
 
 			drawEdge(ctx, sx, sy, tx, ty, colour, opacity);
 		}
 
-		// Draw nodes
+		// Draw nodes (real and ghost)
 		for (const [id, idx] of Object.entries(nodeIndex)) {
-			const t = getThoughtById(id);
-			if (!t) continue;
-
 			const [sx, sy] = worldToScreen(posBuffer[idx * 2], posBuffer[idx * 2 + 1]);
-			const colour = PIPELINE_COLOUR[t.meta_state] ?? PIPELINE_COLOUR[1];
-			const isActive = id === activeThoughtId;
-			const opacity = getNodeOpacity(id);
 
-			ctx.save();
-			ctx.globalAlpha = opacity;
-			drawNode(ctx, sx, sy, NODE_RADIUS, colour, isActive, t.title, zoom);
-			ctx.restore();
+			if (ghostMap[id]) {
+				// Ghost node — dashed stroke-only circle
+				const ghost = ghostMap[id];
+				ctx.save();
+				ctx.globalAlpha = ghostOpacityFromWorker;
+				drawNode(ctx, sx, sy, uiStore.graphNodeSize, ghostColour, false, ghost.title, zoom, uiStore.graphShowLabels, true);
+				ctx.restore();
+			} else {
+				const t = getThoughtById(id);
+				if (!t) continue;
+
+				const colour = PIPELINE_COLOUR[t.meta_state] ?? PIPELINE_COLOUR[1];
+				const isActive = id === activeThoughtId;
+				const opacity = getNodeOpacity(id);
+
+				ctx.save();
+				ctx.globalAlpha = opacity;
+				drawNode(ctx, sx, sy, uiStore.graphNodeSize, colour, isActive, t.title, zoom, uiStore.graphShowLabels, false);
+				ctx.restore();
+			}
 		}
 	}
 
@@ -294,12 +323,12 @@
 				activeThoughtId,
 				allThoughts,
 				allEdges,
-				GRAPH_CONFIG.neighbourhoodDepth,
+				uiStore.graphNeighbourhoodDepth,
 			);
 			for (const t of allThoughts) {
 				targets.set(
 					t.id,
-					hood.has(t.id) ? GRAPH_CONFIG.nodeFocusOpacity : GRAPH_CONFIG.nodeUnfocusedOpacity,
+					hood.has(t.id) ? GRAPH_CONFIG.nodeFocusOpacity : uiStore.graphDimStrength,
 				);
 			}
 		}
@@ -358,7 +387,7 @@
 
 	function hitTestNode(sx: number, sy: number): string | null {
 		if (!posBuffer) return null;
-		const hitRadius = (NODE_RADIUS + 8) / zoom; // generous hit area
+		const hitRadius = (uiStore.graphNodeSize + 8) / zoom; // generous hit area
 
 		for (const [id, idx] of Object.entries(nodeIndex)) {
 			const wx = posBuffer[idx * 2];
@@ -425,6 +454,19 @@
 		canvasEl.releasePointerCapture(e.pointerId);
 
 		if (dragNodeId) {
+			// If ghost node — open SparkInput pre-filled with the ghost title
+			if (ghostMap[dragNodeId]) {
+				const [px, py] = getPointerPos(e);
+				const hit = hitTestNode(px, py);
+				if (hit === dragNodeId) {
+					uiStore.sparkInputPrefill = ghostMap[dragNodeId].title;
+				}
+				worker?.postMessage({ type: 'dragEnd', id: dragNodeId });
+				dragNodeId = null;
+				isPanning = false;
+				return;
+			}
+
 			// Save position to Dexie ONLY on dragEnd
 			const idx = nodeIndex[dragNodeId];
 			if (posBuffer && idx !== undefined) {
@@ -458,7 +500,26 @@
 		const py = e.clientY - rect.top;
 		const nodeId = hitTestNode(px, py);
 		if (!nodeId) {
+			// No node hit — show canvas context menu
 			contextMenuOpen = false;
+			const [simX, simY] = screenToWorld(px, py);
+			canvasMenuSimX = simX;
+			canvasMenuSimY = simY;
+			canvasMenuX = e.clientX;
+			canvasMenuY = e.clientY;
+			canvasMenuOpen = true;
+			return;
+		}
+
+		// Ghost node right-click — treat same as empty canvas for "Create Thought Here"
+		if (ghostMap[nodeId]) {
+			contextMenuOpen = false;
+			const [simX, simY] = screenToWorld(px, py);
+			canvasMenuSimX = simX;
+			canvasMenuSimY = simY;
+			canvasMenuX = e.clientX;
+			canvasMenuY = e.clientY;
+			canvasMenuOpen = true;
 			return;
 		}
 
@@ -469,7 +530,8 @@
 		const settings = await getUserSettings();
 		const pinnedIds = new Set<string>(settings?.pinned_thought_ids ?? []);
 
-		contextNodeId = nodeId;
+		contextNodeId    = nodeId;
+		contextNodeTitle = thought.title;
 		contextNodeStage = thought.meta_state;
 		contextNodePinned = pinnedIds.has(nodeId);
 		contextMenuX = e.clientX;
@@ -480,6 +542,10 @@
 	function closeContextMenu() {
 		contextMenuOpen = false;
 		contextNodeId = null;
+	}
+
+	function closeCanvasMenu() {
+		canvasMenuOpen = false;
 	}
 
 	// ── Zoom ─────────────────────────────────────────────────────────────────
@@ -527,10 +593,36 @@
 		if (e.data?.type === 'positions') {
 			posBuffer = e.data.buffer;
 			nodeIndex = e.data.nodeIndex;
-			hullData = e.data.hulls ?? {};
+			hullData  = e.data.hulls    ?? {};
+			ghostMap  = e.data.ghostMap ?? {};
+			ghostOpacityFromWorker = e.data.ghostOpacity ?? FEATURE_CONFIG.GHOST_NODE_OPACITY;
 			draw();
 		}
 	}
+
+	// ── React to display setting changes — redraw canvas ─────────────────────
+
+	$effect(() => {
+		// Subscribe to all display settings — any change triggers redraw
+		void uiStore.graphNodeSize;
+		void uiStore.graphEdgeOpacity;
+		void uiStore.graphShowLabels;
+		void uiStore.graphShowHulls;
+		void uiStore.graphDimStrength;
+		draw();
+	});
+
+	// ── React to physics setting changes — update worker forces ──────────────
+
+	$effect(() => {
+		const { graphRepulsion, graphLinkDistance, graphSettleSpeed } = uiStore;
+		worker?.postMessage({
+			type: 'updateForces',
+			repulsion: graphRepulsion,
+			linkDistance: graphLinkDistance,
+			settleSpeed: graphSettleSpeed,
+		});
+	});
 
 	// ── React to activeThoughtId changes ─────────────────────────────────────
 
@@ -567,11 +659,13 @@
 		ctx = canvasEl.getContext('2d');
 		resizeCanvas();
 
-		// Resolve CSS variables for hull colours (FIX-18/FIX-24: main thread only)
+		// Resolve CSS variables for hull and ghost colours (main thread only)
 		const styles = getComputedStyle(document.body);
 		for (const s of PIPELINE_STATES) {
 			HULL_COLOUR[s.id] = styles.getPropertyValue(s.cssVar).trim();
 		}
+		// Ghost nodes use the muted text colour (no fill, stroke only)
+		ghostColour = styles.getPropertyValue('--text-muted').trim() || '#475569';
 
 		// Worker
 		worker = new Worker(
@@ -604,13 +698,27 @@
 			worker?.postMessage({
 				type: 'addNode',
 				node: {
-					id: t.id,
-					x: t.x_pos || undefined,
-					y: t.y_pos || undefined,
+					id:         t.id,
+					title:      t.title,
+					x:          t.x_pos || undefined,
+					y:          t.y_pos || undefined,
 					meta_state: t.meta_state,
 				},
 			});
 		});
+
+		// Listen for canvas graph events (from CanvasContextMenu)
+		graphUnsubs.push(
+			eventBus.on('graph.resetViewport', () => {
+				camX = 0;
+				camY = 0;
+				zoom = 1;
+				draw();
+			}),
+			eventBus.on('graph.settleGraph', () => {
+				worker?.postMessage({ type: 'settle' });
+			}),
+		);
 
 		// Event listeners
 		canvasEl.addEventListener('wheel', handleWheel, { passive: false });
@@ -630,6 +738,7 @@
 		thoughtsSub?.unsubscribe();
 		edgesSub?.unsubscribe();
 		unsubCreated?.();
+		for (const unsub of graphUnsubs) unsub();
 		canvasEl?.removeEventListener('wheel', handleWheel);
 		canvasEl?.removeEventListener('touchstart', handleTouchStart);
 		canvasEl?.removeEventListener('touchmove', handleTouchMove);
@@ -649,11 +758,22 @@
 {#if contextMenuOpen && contextNodeId}
 	<NodeContextMenu
 		thoughtId={contextNodeId}
+		thoughtTitle={contextNodeTitle}
 		currentStage={contextNodeStage}
 		isPinned={contextNodePinned}
 		x={contextMenuX}
 		y={contextMenuY}
 		onclose={closeContextMenu}
+	/>
+{/if}
+
+{#if canvasMenuOpen}
+	<CanvasContextMenu
+		x={canvasMenuX}
+		y={canvasMenuY}
+		simX={canvasMenuSimX}
+		simY={canvasMenuSimY}
+		onClose={closeCanvasMenu}
 	/>
 {/if}
 

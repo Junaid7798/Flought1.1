@@ -19,6 +19,8 @@
 	import { eventBus } from '$lib/eventBus';
 	import SyncStatusBadge from './SyncStatusBadge.svelte';
 	import PipelineMomentum from './PipelineMomentum.svelte';
+	import ThermalCalendar from './ThermalCalendar.svelte';
+	import SerendipityCollider from './SerendipityCollider.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -290,6 +292,14 @@
 		<PipelineMomentum {thoughts} />
 	</div>
 
+	<!-- ── Thermal Calendar (D.1) ─────────────────────────────────────────── -->
+	<div class="section">
+		<ThermalCalendar {thoughts} />
+	</div>
+
+	<!-- ── Serendipity Collider (D.2) ─────────────────────────────────────── -->
+	<SerendipityCollider {thoughts} libraryId={activeLibraryId} />
+
 	<!-- ── Pinned Thoughts ─────────────────────────────────────────────────── -->
 	{#if pinnedThoughts.length > 0}
 		<div class="section">
@@ -308,6 +318,9 @@
 							type="button"
 						>
 							{thought.title || t('search.untitled')}
+							{#if thought.is_triaged === false}
+								<span class="triage-dot" aria-label={t('feature.triage.unread')}></span>
+							{/if}
 						</button>
 						<button
 							class="pin-btn pinned"
@@ -341,6 +354,9 @@
 							type="button"
 						>
 							{thought.title || t('search.untitled')}
+							{#if thought.is_triaged === false}
+								<span class="triage-dot" aria-label={t('feature.triage.unread')}></span>
+							{/if}
 						</button>
 						<button
 							class="pin-btn"
@@ -428,19 +444,14 @@
 		display: flex;
 		flex-direction: column;
 		height: 100dvh;
-		background: var(--bg-panel);
-		border-right: 1px solid var(--border);
+		background: var(--glass-panel);
+		backdrop-filter: var(--glass-blur);
+		-webkit-backdrop-filter: var(--glass-blur);
+		border-right: 1px solid var(--border-strong);
 		overflow-y: auto;
 		overflow-x: hidden;
 		padding-bottom: env(safe-area-inset-bottom);
 		position: relative;
-	}
-
-	@media (min-width: 768px) {
-		.sidebar {
-			backdrop-filter: blur(24px);
-			-webkit-backdrop-filter: blur(24px);
-		}
 	}
 
 	/* ── Brand ──────────────────────────────────────────────────────────── */
@@ -645,12 +656,14 @@
 		top: 100%;
 		left: 0;
 		right: 0;
-		background: var(--bg-surface);
+		background: var(--glass-surface);
+		backdrop-filter: var(--glass-blur-sm);
+		-webkit-backdrop-filter: var(--glass-blur-sm);
 		border: 1px solid var(--border-strong);
 		border-radius: 8px;
 		z-index: 100;
 		overflow: hidden;
-		box-shadow: 0 8px 24px var(--shadow-dropdown);
+		box-shadow: 0 8px 32px var(--shadow-dropdown);
 	}
 
 	.dropdown-item {
@@ -821,6 +834,23 @@
 
 	.thought-link:hover {
 		color: var(--text-primary);
+	}
+
+	.triage-dot {
+		display: inline-block;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--color-brand);
+		margin-left: 4px;
+		vertical-align: middle;
+		flex-shrink: 0;
+		animation: triage-pulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes triage-pulse {
+		0%, 100% { opacity: 1; }
+		50%       { opacity: 0.3; }
 	}
 
 	.pin-btn {

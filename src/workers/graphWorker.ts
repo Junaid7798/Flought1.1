@@ -30,9 +30,12 @@ import { polygonHull } from 'd3-polygon';
 
 export interface NodeData {
   id: string;
+  title: string;
+  content?: string;   // present for real nodes only — used to extract unresolved wikilinks
   x?: number;
   y?: number;
   meta_state: number;
+  isGhost?: boolean;
 }
 
 export interface EdgeData {
@@ -42,7 +45,9 @@ export interface EdgeData {
 
 interface SimNode extends SimulationNodeDatum {
   id: string;
+  title: string;
   meta_state: number;
+  isGhost: boolean;
 }
 
 interface SimEdge extends SimulationLinkDatum<SimNode> {
@@ -51,23 +56,28 @@ interface SimEdge extends SimulationLinkDatum<SimNode> {
 }
 
 type InMessage =
-  | { type: 'simulate'; nodes: NodeData[]; edges: EdgeData[] }
+  | { type: 'simulate'; nodes: NodeData[]; edges: EdgeData[]; ghostOpacity: number }
   | { type: 'drag'; id: string; fx: number; fy: number }
   | { type: 'dragEnd'; id: string }
   | { type: 'addNode'; node: NodeData }
   | { type: 'focusStage'; stageId: number }
-  | { type: 'clearFocusStage' };
+  | { type: 'clearFocusStage' }
+  | { type: 'updateForces'; repulsion: number; linkDistance: number; settleSpeed: number }
+  | { type: 'settle' };
 
 // ── State ────────────────────────────────────────────────────────────────────
 
-const ALPHA_DECAY = 0.028;
-const MANY_BODY_STRENGTH = -200;
-const LINK_DISTANCE = 120;
-const GRAVITY_FOCUS_STRENGTH = 0.3;
-const GRAVITY_PUSH_STRENGTH = -0.1;
+import { GRAPH_PHYSICS_DEFAULTS } from '$lib/graphDefaults';
+
+let ALPHA_DECAY:        number = GRAPH_PHYSICS_DEFAULTS.alphaDecay;
+let MANY_BODY_STRENGTH: number = GRAPH_PHYSICS_DEFAULTS.manyBodyStrength;
+let LINK_DISTANCE:      number = GRAPH_PHYSICS_DEFAULTS.linkDistance;
+const GRAVITY_FOCUS_STRENGTH: number = GRAPH_PHYSICS_DEFAULTS.gravityCenterX;
+const GRAVITY_PUSH_STRENGTH:  number = GRAPH_PHYSICS_DEFAULTS.gravityPushStrength;
 
 let nodes: SimNode[] = [];
 let edges: SimEdge[] = [];
+let ghostOpacity = 0.35; // updated from each simulate message
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let sim: ReturnType<typeof forceSimulation<SimNode>> | null = null;
@@ -79,9 +89,10 @@ function nodeMap(): Map<string, SimNode> {
 }
 
 function computeHulls(): Record<number, [number, number][]> {
-  // Group node positions by meta_state
+  // Group node positions by meta_state — exclude ghost nodes (meta_state 0)
   const groups = new Map<number, [number, number][]>();
   for (const n of nodes) {
+    if (n.isGhost) continue;
     const pts = groups.get(n.meta_state);
     const pt: [number, number] = [n.x ?? 0, n.y ?? 0];
     if (pts) {
@@ -104,15 +115,20 @@ function computeHulls(): Record<number, [number, number][]> {
 function postPositions() {
   const nodeIndex: Record<string, number> = {};
   const buffer = new Float32Array(nodes.length * 2);
+  // Ghost metadata map: nodeId → { title, isGhost }
+  const ghostMap: Record<string, { title: string; isGhost: boolean }> = {};
 
   for (let i = 0; i < nodes.length; i++) {
     nodeIndex[nodes[i].id] = i;
-    buffer[i * 2] = nodes[i].x ?? 0;
+    buffer[i * 2]     = nodes[i].x ?? 0;
     buffer[i * 2 + 1] = nodes[i].y ?? 0;
+    if (nodes[i].isGhost) {
+      ghostMap[nodes[i].id] = { title: nodes[i].title, isGhost: true };
+    }
   }
 
   const hulls = computeHulls();
-  self.postMessage({ type: 'positions', buffer, nodeIndex, hulls });
+  self.postMessage({ type: 'positions', buffer, nodeIndex, hulls, ghostMap, ghostOpacity });
 }
 
 function buildSimulation(): ReturnType<typeof forceSimulation<SimNode>> {
@@ -120,7 +136,8 @@ function buildSimulation(): ReturnType<typeof forceSimulation<SimNode>> {
     .alphaDecay(ALPHA_DECAY)
     .force(
       'charge',
-      forceManyBody<SimNode>().strength(MANY_BODY_STRENGTH),
+      // Ghost nodes get half the charge to avoid dominating the layout
+      forceManyBody<SimNode>().strength((d) => d.isGhost ? MANY_BODY_STRENGTH / 2 : MANY_BODY_STRENGTH),
     )
     .force(
       'link',
@@ -164,6 +181,18 @@ function clearGravity(s: ReturnType<typeof forceSimulation<SimNode>>) {
   s.force('gravityY', null);
 }
 
+// ── Wikilink extractor ───────────────────────────────────────────────────────
+
+function extractWikilinks(content: string): string[] {
+  const pattern = /\[\[([^\]]+)\]\]/g;
+  const links: string[] = [];
+  let match;
+  while ((match = pattern.exec(content)) !== null) {
+    links.push(match[1].trim());
+  }
+  return links;
+}
+
 // ── Message handler ──────────────────────────────────────────────────────────
 
 self.onmessage = (e: MessageEvent<InMessage>) => {
@@ -171,12 +200,42 @@ self.onmessage = (e: MessageEvent<InMessage>) => {
 
   switch (msg.type) {
     case 'simulate': {
-      nodes = msg.nodes.map((n) => ({
-        id: n.id,
-        x: n.x,
-        y: n.y,
+      ghostOpacity = msg.ghostOpacity;
+
+      // Build real nodes
+      const realNodes: SimNode[] = msg.nodes.map((n) => ({
+        id:         n.id,
+        title:      n.title,
+        x:          n.x,
+        y:          n.y,
         meta_state: n.meta_state,
+        isGhost:    false,
       }));
+
+      // Extract ghost nodes from unresolved [[wikilinks]]
+      const existingTitles = new Set(realNodes.map((n) => n.title.toLowerCase()));
+      const ghostTitles = new Set<string>();
+
+      for (const n of msg.nodes) {
+        if (!n.content) continue;
+        for (const link of extractWikilinks(n.content)) {
+          const lower = link.toLowerCase();
+          if (!existingTitles.has(lower) && !ghostTitles.has(lower)) {
+            ghostTitles.add(lower);
+          }
+        }
+      }
+
+      const ghostNodes: SimNode[] = [...ghostTitles].map((title) => ({
+        id:         'ghost-' + title,
+        title:      title,
+        x:          undefined,
+        y:          undefined,
+        meta_state: 0,
+        isGhost:    true,
+      }));
+
+      nodes = [...realNodes, ...ghostNodes];
 
       edges = msg.edges.map((edge) => ({
         source: edge.source,
@@ -216,10 +275,12 @@ self.onmessage = (e: MessageEvent<InMessage>) => {
 
     case 'addNode': {
       const newNode: SimNode = {
-        id: msg.node.id,
-        x: msg.node.x,
-        y: msg.node.y,
+        id:         msg.node.id,
+        title:      msg.node.title,
+        x:          msg.node.x,
+        y:          msg.node.y,
         meta_state: msg.node.meta_state,
+        isGhost:    msg.node.isGhost ?? false,
       };
       nodes.push(newNode);
 
@@ -249,6 +310,34 @@ self.onmessage = (e: MessageEvent<InMessage>) => {
       clearGravity(sim);
       sim.alpha(0.4).restart().stop();
       runToCompletion(sim);
+      break;
+    }
+
+    case 'settle': {
+      if (sim) {
+        sim.alpha(0.1).restart().stop();
+        runToCompletion(sim);
+      }
+      break;
+    }
+
+    case 'updateForces': {
+      MANY_BODY_STRENGTH = -msg.repulsion;
+      LINK_DISTANCE = msg.linkDistance;
+      ALPHA_DECAY = msg.settleSpeed;
+      if (sim) {
+        sim
+          .force('charge', forceManyBody<SimNode>().strength(MANY_BODY_STRENGTH))
+          .force(
+            'link',
+            forceLink<SimNode, SimEdge>(edges).id((d) => d.id).distance(LINK_DISTANCE),
+          )
+          .alphaDecay(ALPHA_DECAY)
+          .alpha(0.3)
+          .restart()
+          .stop();
+        runToCompletion(sim);
+      }
       break;
     }
   }

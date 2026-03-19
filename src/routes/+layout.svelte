@@ -4,7 +4,8 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
-	import { getUserProfile, getDefaultLibrary, getUserSettings, createThought, updateThought } from '$lib/db';
+	import { getUserProfile, getDefaultLibrary, getUserSettings, createThought, updateThought, devSeedBypass } from '$lib/db';
+	import { env } from '$env/dynamic/public';
 	import { initializeShortcuts, onAction, destroyShortcuts } from '$lib/ShortcutManager';
 	import Sidebar from '../components/layout/Sidebar.svelte';
 	import Topbar from '../components/layout/Topbar.svelte';
@@ -20,6 +21,35 @@
 	let ready = $state(false);
 
 	onMount(async () => {
+		// ⚠️ DEV BYPASS — REMOVE BEFORE DEPLOY
+		// Skips login + onboarding when PUBLIC_DEV_BYPASS=true in .env
+		if (env.PUBLIC_DEV_BYPASS === 'true') {
+			const libId = await devSeedBypass();
+			uiStore.activeLibraryId = libId;
+			if (
+				$page.url.pathname === '/' ||
+				$page.url.pathname.startsWith('/login') ||
+				$page.url.pathname.startsWith('/onboarding')
+			) {
+				goto('/map');
+			}
+			// fall through to normal bootstrap (shortcuts, search worker, etc.)
+		}
+		// ⚠️ END DEV BYPASS
+
+		// Bootstrap theme — runs on every app load across all platforms.
+		// Keeps uiStore, the CSS class, and localStorage in sync.
+		// localStorage is read by the inline script in app.html to prevent flash.
+		const savedSettings = await getUserSettings();
+		if (savedSettings?.theme === 'light') {
+			uiStore.theme = 'light';
+			document.documentElement.classList.add('theme-light');
+			try { localStorage.setItem('flought_theme', 'light'); } catch (_) {}
+		} else {
+			document.documentElement.classList.remove('theme-light');
+			try { localStorage.removeItem('flought_theme'); } catch (_) {}
+		}
+
 		// Skip guard on auth and onboarding routes
 		if (
 			$page.url.pathname.startsWith('/onboarding') ||

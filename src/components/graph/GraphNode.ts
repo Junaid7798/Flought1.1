@@ -18,7 +18,24 @@ export function drawNode(
   isActive: boolean,
   label: string,
   zoom: number,
+  showLabels = true,
+  isGhost = false,
 ): void {
+  if (isGhost) {
+    // ── Ghost node — dashed stroke-only circle, no fill ────────────────
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    // Ghost nodes skip label below zoom threshold
+    return;
+  }
+
   // ── Active ring ────────────────────────────────────────────────────────
   if (isActive) {
     ctx.save();
@@ -38,7 +55,7 @@ export function drawNode(
   ctx.fill();
 
   // ── Label ──────────────────────────────────────────────────────────────
-  if (zoom >= LABEL_ZOOM_THRESHOLD && label) {
+  if (showLabels && zoom >= LABEL_ZOOM_THRESHOLD && label) {
     ctx.font = LABEL_FONT;
     ctx.fillStyle = colour;
     ctx.textAlign = 'center';

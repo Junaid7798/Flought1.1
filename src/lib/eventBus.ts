@@ -5,7 +5,9 @@ export type FloughtEvent =
   | { type: 'edge.created';         payload: { id: string } }
   | { type: 'edge.updated';         payload: { id: string } }
   | { type: 'library.switched';     payload: { id: string } }
-  | { type: 'sync.completed';       payload: { provider: string } };
+  | { type: 'sync.completed';       payload: { provider: string } }
+  | { type: 'graph.resetViewport';  payload: Record<string, never> }
+  | { type: 'graph.settleGraph';    payload: Record<string, never> };
 
 type Listener = (event: FloughtEvent) => void;
 

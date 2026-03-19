@@ -158,6 +158,12 @@
 
 	.badge.clickable {
 		cursor: pointer;
+		border-radius: 4px;
+		transition: opacity 120ms;
+	}
+
+	.badge.clickable:hover {
+		opacity: 0.8;
 	}
 
 	.dot {
@@ -198,9 +204,11 @@
 	.modal {
 		width: 100%;
 		max-width: 340px;
-		background: var(--bg-panel);
+		background: var(--glass-overlay);
+		backdrop-filter: var(--glass-blur);
+		-webkit-backdrop-filter: var(--glass-blur);
 		border: 1px solid var(--border-strong);
-		border-radius: 12px;
+		border-radius: 16px;
 		padding: 1.5rem;
 		display: flex;
 		flex-direction: column;

@@ -5,18 +5,20 @@
 	import { $t as t } from '$lib/i18n';
 	import { PIPELINE_STATES } from '$lib/config';
 	import { updateThought, softDeleteThought, getUserSettings, updateUserSettings } from '$lib/db';
+	import { showToast } from '$lib/stores/toastStore.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
 	interface Props {
 		thoughtId: string;
+		thoughtTitle: string;
 		currentStage: number;
 		isPinned: boolean;
 		x: number;
 		y: number;
 		onclose: () => void;
 	}
-	let { thoughtId, currentStage, isPinned, x, y, onclose }: Props = $props();
+	let { thoughtId, thoughtTitle, currentStage, isPinned, x, y, onclose }: Props = $props();
 
 	// ── Stage submenu ─────────────────────────────────────────────────────────
 
@@ -27,6 +29,13 @@
 	function handleOpen() {
 		onclose();
 		goto(`/thought/${thoughtId}`);
+	}
+
+	function handleCopyWikilink() {
+		navigator.clipboard.writeText('[[' + thoughtTitle + ']]')
+			.then(() => showToast(t('feature.copyWikilink.success')))
+			.catch(() => showToast(t('feature.copyWikilink.error'), 'error'));
+		onclose();
 	}
 
 	async function handleChangeStage(stageId: 1 | 2 | 3 | 4) {
@@ -74,6 +83,10 @@
 >
 	<button class="menu-item" role="menuitem" onclick={handleOpen}>
 		{t('context.open')}
+	</button>
+
+	<button class="menu-item" role="menuitem" onclick={handleCopyWikilink}>
+		{t('graph.copyWikilink')}
 	</button>
 
 	<div class="menu-item-wrap">
@@ -124,11 +137,13 @@
 		position: fixed;
 		z-index: 1000;
 		min-width: 160px;
-		background: var(--bg-surface);
+		background: var(--glass-surface);
+		backdrop-filter: var(--glass-blur);
+		-webkit-backdrop-filter: var(--glass-blur);
 		border: 1px solid var(--border-strong);
-		border-radius: 8px;
+		border-radius: 10px;
 		padding: 4px 0;
-		box-shadow: 0 8px 24px var(--shadow-dropdown);
+		box-shadow: 0 8px 32px var(--shadow-dropdown);
 	}
 
 	.menu-item-wrap {
@@ -176,11 +191,13 @@
 		left: 100%;
 		top: 0;
 		min-width: 140px;
-		background: var(--bg-surface);
+		background: var(--glass-surface);
+		backdrop-filter: var(--glass-blur);
+		-webkit-backdrop-filter: var(--glass-blur);
 		border: 1px solid var(--border-strong);
-		border-radius: 8px;
+		border-radius: 10px;
 		padding: 4px 0;
-		box-shadow: 0 8px 24px var(--shadow-dropdown);
+		box-shadow: 0 8px 32px var(--shadow-dropdown);
 	}
 
 	.stage-dot {

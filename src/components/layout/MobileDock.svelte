@@ -129,7 +129,9 @@
 		bottom: 0;
 		left: 0;
 		right: 0;
-		background: var(--bg-panel);
+		background: var(--glass-panel);
+		backdrop-filter: var(--glass-blur);
+		-webkit-backdrop-filter: var(--glass-blur);
 		border-top: 1px solid var(--border-strong);
 		border-radius: 16px 16px 0 0;
 		z-index: 60;
@@ -193,8 +195,10 @@
 		right: 0;
 		height: calc(60px + env(safe-area-inset-bottom));
 		padding-bottom: env(safe-area-inset-bottom);
-		background: var(--bg-panel);
-		border-top: 1px solid var(--border);
+		background: var(--glass-panel);
+		backdrop-filter: var(--glass-blur);
+		-webkit-backdrop-filter: var(--glass-blur);
+		border-top: 1px solid var(--border-strong);
 		display: flex;
 		align-items: stretch;
 		z-index: 70;
@@ -220,6 +224,7 @@
 	/* ── Tabs ────────────────────────────────────────────────────────────── */
 
 	.dock-tab {
+		position: relative;
 		flex: 1;
 		display: flex;
 		flex-direction: column;
@@ -245,6 +250,29 @@
 		outline: 2px solid var(--color-brand);
 		outline-offset: -4px;
 		border-radius: 6px;
+	}
+
+	/* Active indicator dot above the label */
+	.dock-tab::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 50%;
+		transform: translateX(-50%) scaleX(0);
+		width: 20px;
+		height: 2px;
+		border-radius: 0 0 2px 2px;
+		background: var(--color-brand);
+		transition: transform 150ms;
+	}
+
+	.dock-tab.active::before {
+		transform: translateX(-50%) scaleX(1);
+	}
+
+	/* Capture tab has no top indicator — it has the pip instead */
+	.capture-tab::before {
+		display: none;
 	}
 
 	.tab-label {

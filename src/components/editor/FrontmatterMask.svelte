@@ -9,6 +9,8 @@
 		getThought,
 		getUserSettings,
 		updateThought,
+		addAlias,
+		removeAlias,
 		type Thought,
 		type UserSettings,
 	} from '$lib/db';
@@ -26,6 +28,7 @@
 	let thought = $state<Thought | null>(null);
 	let settings = $state<UserSettings | null>(null);
 	let yamlData = $state<Record<string, unknown>>({});
+	let aliasInput = $state('');
 
 	// ── Pipeline labels (settings overrides or i18n fallback) ─────────────────
 
@@ -88,6 +91,24 @@
 		thought = { ...thought, content: newContent };
 		await updateThought(thoughtId, { content: newContent });
 	}
+
+	// ── Alias handlers ────────────────────────────────────────────────────────
+
+	async function handleAliasBlur() {
+		const trimmed = aliasInput.trim();
+		if (!trimmed || !thought) return;
+		await addAlias(thoughtId, trimmed);
+		// Refresh aliases on thought state
+		const refreshed = await getThought(thoughtId);
+		if (refreshed) thought = refreshed;
+		aliasInput = '';
+	}
+
+	async function handleRemoveAlias(alias: string) {
+		if (!thought) return;
+		await removeAlias(thoughtId, alias);
+		thought = { ...thought, aliases: thought.aliases.filter((a) => a !== alias) };
+	}
 </script>
 
 {#if thought}
@@ -129,6 +150,33 @@
 				/>
 			</div>
 		{/each}
+
+		<!-- ── Aliases (C.3) ────────────────────────────────────────────────── -->
+		<div class="row alias-row">
+			<span class="label">{t('feature.aliases')}</span>
+			<div class="alias-wrap">
+				{#each thought.aliases ?? [] as alias}
+					<span class="alias-pill">
+						{alias}
+						<button
+							class="alias-remove"
+							type="button"
+							aria-label="Remove alias {alias}"
+							onclick={() => handleRemoveAlias(alias)}
+						>×</button>
+					</span>
+				{/each}
+				<input
+					class="alias-input"
+					type="text"
+					placeholder="Add alias…"
+					bind:value={aliasInput}
+					onblur={handleAliasBlur}
+					onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
+					aria-label={t('feature.aliases')}
+				/>
+			</div>
+		</div>
 
 	</div>
 {/if}
@@ -217,4 +265,59 @@
 	.value-input::placeholder {
 		color: var(--text-muted);
 	}
+
+	/* ── Aliases ───────────────────────────────────────────────────────── */
+	.alias-row { align-items: flex-start; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+
+	.alias-wrap {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.375rem;
+		flex: 1;
+	}
+
+	.alias-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		background: var(--bg-surface);
+		border: 1px solid var(--border-strong);
+		border-radius: 4px;
+		padding: 0.125rem 0.375rem;
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+	}
+
+	.alias-remove {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: 0.875rem;
+		line-height: 1;
+		padding: 0 0.125rem;
+		border-radius: 2px;
+		transition: color 120ms;
+		min-height: 20px; /* kept inside pill — not standalone tap target */
+	}
+
+	.alias-remove:hover { color: var(--text-primary); }
+
+	.alias-input {
+		background: transparent;
+		border: none;
+		border-bottom: 1px solid transparent;
+		color: var(--text-primary);
+		font-size: 0.8125rem;
+		font-family: inherit;
+		padding: 0.125rem 0;
+		outline: none;
+		transition: border-color 120ms;
+		min-width: 80px;
+		min-height: 28px;
+	}
+
+	.alias-input:focus { border-bottom-color: var(--color-brand); }
+	.alias-input::placeholder { color: var(--text-muted); }
 </style>

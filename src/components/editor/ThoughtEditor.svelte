@@ -8,6 +8,7 @@
 	import { history } from '@codemirror/commands';
 	import {
 		updateThought, rebuildEdgesForThought, getThoughtStates,
+		getThoughtStatesAndAliases,
 		type Thought,
 	} from '$lib/db';
 	import { extractLinks } from '$lib/linkParser';
@@ -23,6 +24,11 @@
 	} from '$lib/embedWidget';
 	import { getThoughtsByLibrary } from '$lib/db';
 	import { ANIMATION_CONFIG } from '$lib/config';
+	import { createSyntaxHiding } from './extensions/syntaxHiding';
+	import { createSemanticFolding } from './extensions/semanticFolding';
+	import { createVaultAutocomplete } from './extensions/vaultAutocomplete';
+	import { createSmartLists } from './extensions/smartLists';
+	import FloatingToolbar from './FloatingToolbar.svelte';
 	import SlashMenu, { type SlashItem } from './SlashMenu.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
@@ -45,6 +51,10 @@
 	let slashX = $state(0);
 	let slashY = $state(0);
 	let slashFrom = -1;
+
+	// ── Vault autocomplete terms ──────────────────────────────────────────────
+
+	let autocompleteTerms = $state<string[]>([]);
 
 	// ── Typing rhythm bar ─────────────────────────────────────────────────────
 
@@ -151,8 +161,14 @@
 
 	// ── Mount / destroy ───────────────────────────────────────────────────────
 
-	onMount(() => {
+	onMount(async () => {
 		if (!containerEl) return;
+
+		// Load vault terms for autocomplete (title + aliases)
+		const statesAndAliases = await getThoughtStatesAndAliases();
+		autocompleteTerms = statesAndAliases
+			.filter((s) => s.id !== thought.id)
+			.flatMap((s) => [s.title, ...s.aliases]);
 
 		// Subscribe to live thought states for thermal pill decorations
 		stateMapSub = getThoughtStates(thought.library_id).subscribe((states) => {
@@ -192,6 +208,9 @@
 				thermalPillTheme,
 				embedField,
 				embedTheme,
+				createSyntaxHiding(),
+				createSemanticFolding(),
+				createVaultAutocomplete(autocompleteTerms),
 				midnightTheme,
 				EditorView.lineWrapping,
 				EditorView.updateListener.of((update) => {
@@ -234,6 +253,8 @@
 						return false;
 					},
 				}),
+				// Smart lists must be last — overrides Enter/Tab from defaultKeymap
+				createSmartLists(),
 			],
 		});
 
@@ -265,6 +286,9 @@
 	<!-- Typing rhythm bar: 2px cyan line, grows in on keypress, fades after idle -->
 	<div class="rhythm-bar" class:active={isTyping}></div>
 </div>
+
+<!-- Floating format toolbar — hidden on Capacitor native (handled inside component) -->
+<FloatingToolbar />
 
 {#if slashOpen}
 	<SlashMenu

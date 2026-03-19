@@ -55,6 +55,11 @@ export interface Thought {
 	updated_at: string;
 	is_deleted: boolean;
 	telemetry: TelemetryEntry[];
+	// v3 fields
+	aliases:        string[];
+	last_viewed_at: number;
+	word_count:     number;
+	is_triaged:     boolean;
 }
 
 export interface TelemetryEntry {
@@ -70,6 +75,8 @@ export interface Edge {
 	link_type: string;
 	created_at: string;
 	is_deleted: boolean;
+	// v3 fields
+	traversal_count: number;
 }
 
 // ── Database ──────────────────────────────────────────────────────────────────
@@ -106,6 +113,28 @@ class FloughtDB extends Dexie {
 				if (s.pinned_thought_ids === undefined) s.pinned_thought_ids = [];
 			});
 		});
+
+		// v3 — Group A: aliases, last_viewed_at, word_count, is_triaged on thoughts;
+		//               traversal_count on edges. No new indexes — non-indexed fields only.
+		this.version(3).stores({
+			libraries:   'id, name, created_at, is_deleted',
+			userProfile: 'id',
+			userSettings:'id',
+			thoughts:    'id, library_id, meta_state, topic, created_at, updated_at, is_deleted',
+			edges:       'id, library_id, source_id, target_id, is_deleted',
+		}).upgrade((tx) => {
+			const upgradeThoughts = tx.table('thoughts').toCollection().modify((t) => {
+				if (t.aliases        === undefined) t.aliases        = [];
+				if (t.last_viewed_at === undefined) t.last_viewed_at = 0;
+				if (t.word_count     === undefined) t.word_count     =
+					t.content ? t.content.split(/\s+/).filter(Boolean).length : 0;
+				if (t.is_triaged     === undefined) t.is_triaged     = true;
+			});
+			const upgradeEdges = tx.table('edges').toCollection().modify((e) => {
+				if (e.traversal_count === undefined) e.traversal_count = 0;
+			});
+			return Promise.all([upgradeThoughts, upgradeEdges]);
+		});
 	}
 }
 
@@ -113,7 +142,7 @@ export const db = new FloughtDB();
 
 // ── Thought CRUD ──────────────────────────────────────────────────────────────
 
-export async function createThought(libraryId: string, title: string): Promise<string> {
+export async function createThought(libraryId: string, title: string, is_triaged = true): Promise<string> {
 	const now = new Date().toISOString();
 	const id = generateId();
 	await db.thoughts.add({
@@ -129,6 +158,10 @@ export async function createThought(libraryId: string, title: string): Promise<s
 		updated_at: now,
 		is_deleted: false,
 		telemetry: [],
+		aliases:        [],
+		last_viewed_at: 0,
+		word_count:     title.split(/\s+/).filter(Boolean).length,
+		is_triaged,
 	});
 	eventBus.emit({ type: 'thought.created', payload: { id } });
 	return id;
@@ -196,6 +229,7 @@ export async function createEdge(
 		link_type: linkType,
 		created_at: new Date().toISOString(),
 		is_deleted: false,
+		traversal_count: 0,
 	});
 	eventBus.emit({ type: 'edge.created', payload: { id } });
 	return id;
@@ -257,7 +291,15 @@ export async function rebuildEdgesForThought(
 		.filter((t) => !t.is_deleted && t.id !== thoughtId)
 		.toArray();
 
-	const titleToId = new Map(candidates.map((t) => [t.title.toLowerCase(), t.id]));
+	// Build title+alias lookup — alias match resolves to the canonical thought ID
+	const titleToId = new Map<string, string>();
+	for (const c of candidates) {
+		titleToId.set(c.title.toLowerCase(), c.id);
+		for (const alias of c.aliases ?? []) {
+			const key = alias.toLowerCase();
+			if (!titleToId.has(key)) titleToId.set(key, c.id); // title wins if collision
+		}
+	}
 	const newTargetIds = new Set(
 		newLinkedTitles
 			.map((title) => titleToId.get(title.toLowerCase()))
@@ -369,6 +411,50 @@ export async function markOnboardingComplete(): Promise<void> {
 	await db.userProfile.update(PROFILE_ID, { onboarding_complete: true });
 }
 
+// ── ⚠️ DEV BYPASS — REMOVE BEFORE DEPLOY ────────────────────────────────────
+// Seeds a completed profile + default library so you can reach /map instantly
+// without going through login or onboarding. Only called when
+// PUBLIC_DEV_BYPASS=true in .env (which is never committed).
+export async function devSeedBypass(): Promise<string> {
+	const existing = await db.userProfile.get(PROFILE_ID);
+	if (!existing) {
+		await db.userProfile.put({
+			id: PROFILE_ID,
+			display_name: 'Dev',
+			use_case: 'work',
+			blueprint_applied: false,
+			onboarding_complete: true,
+			schema_version: 1,
+			supabase_user_id: null,
+			behavior_signals: { mapViewTime: 0, pipelineInteractions: 0, thoughtsCreated: 0 },
+		});
+	} else if (!existing.onboarding_complete) {
+		await db.userProfile.update(PROFILE_ID, { onboarding_complete: true });
+	}
+
+	const settingsExisting = await db.userSettings.get(SETTINGS_ID);
+	if (!settingsExisting) {
+		await db.userSettings.put({
+			id: SETTINGS_ID,
+			theme: 'midnight',
+			pipeline_label_overrides: ['Inbox', 'Queue', 'Forge', 'Archive'],
+			pipeline_colour_overrides: ['#F59E0B', '#3B82F6', '#10B981', '#6B7280'],
+			string_overrides: {},
+			keyboard_shortcuts: {},
+			sync_provider: null,
+			sync_connected: false,
+			last_synced_at: null,
+			sidebar_width: 220,
+			pinned_thought_ids: [],
+			font_size: 16,
+		});
+	}
+
+	const lib = await getDefaultLibrary();
+	return lib.id;
+}
+// ── END DEV BYPASS ───────────────────────────────────────────────────────────
+
 export async function tagUserProfileWithSupabaseId(userId: string): Promise<void> {
 	const existing = await db.userProfile.get(PROFILE_ID);
 	if (!existing) return;
@@ -413,6 +499,10 @@ export async function applyBlueprint(useCase: string): Promise<void> {
 				updated_at: now,
 				is_deleted: false,
 				telemetry: [],
+				aliases:        [],
+				last_viewed_at: 0,
+				word_count:     seed.title.split(/\s+/).filter(Boolean).length,
+				is_triaged:     true,
 			});
 			eventBus.emit({ type: 'thought.created', payload: { id } });
 		}
@@ -420,4 +510,62 @@ export async function applyBlueprint(useCase: string): Promise<void> {
 
 	// Mark blueprint as applied
 	await db.userProfile.update(PROFILE_ID, { blueprint_applied: useCase });
+}
+
+// ── Group A — New functions ────────────────────────────────────────────────────
+
+export async function updateLastViewed(id: string): Promise<void> {
+	await db.thoughts.update(id, { last_viewed_at: Date.now() });
+	eventBus.emit({ type: 'thought.updated', payload: { id } });
+}
+
+export async function getBacklinksForThought(title: string): Promise<Thought[]> {
+	const pattern = '[[' + title + ']]';
+	return db.thoughts
+		.filter((t) => !t.is_deleted && t.content.includes(pattern))
+		.toArray();
+}
+
+export async function getThoughtStatesAndAliases(): Promise<
+	{ id: string; title: string; meta_state: number; aliases: string[] }[]
+> {
+	const thoughts = await db.thoughts.filter((t) => !t.is_deleted).toArray();
+	return thoughts.map((t) => ({
+		id:         t.id,
+		title:      t.title,
+		meta_state: t.meta_state,
+		aliases:    t.aliases ?? [],
+	}));
+}
+
+export async function updateTraversalCount(edgeId: string): Promise<void> {
+	const edge = await db.edges.get(edgeId);
+	if (!edge) return;
+	await db.edges.update(edgeId, { traversal_count: (edge.traversal_count ?? 0) + 1 });
+}
+
+export async function markTriaged(id: string): Promise<void> {
+	await db.thoughts.update(id, { is_triaged: true });
+	eventBus.emit({ type: 'thought.updated', payload: { id } });
+}
+
+// ── Group C.3 — Alias CRUD ────────────────────────────────────────────────────
+
+export async function addAlias(thoughtId: string, alias: string): Promise<void> {
+	const thought = await db.thoughts.get(thoughtId);
+	if (!thought) return;
+	const trimmed = alias.trim();
+	if (!trimmed) return;
+	// Dedup — case-insensitive check
+	const lower = trimmed.toLowerCase();
+	if (thought.aliases.some((a) => a.toLowerCase() === lower)) return;
+	const aliases = [...thought.aliases, trimmed];
+	await updateThought(thoughtId, { aliases });
+}
+
+export async function removeAlias(thoughtId: string, alias: string): Promise<void> {
+	const thought = await db.thoughts.get(thoughtId);
+	if (!thought) return;
+	const aliases = thought.aliases.filter((a) => a !== alias);
+	await updateThought(thoughtId, { aliases });
 }

@@ -1,3 +1,5 @@
+import { GRAPH_PRESETS } from '$lib/graphDefaults';
+
 export const PIPELINE_STATES = [
   { id: 1, colour: '#F59E0B', cssVar: '--color-inbox' },
   { id: 2, colour: '#3B82F6', cssVar: '--color-queue' },
@@ -24,4 +26,37 @@ export const GRAPH_CONFIG = {
   nodeUnfocusedOpacity: 0.12,
   edgeFocusOpacity: 0.4,
   edgeUnfocusedOpacity: 0.04,
+  nodeRadius: 6,              // default node radius in px (also in graphDefaults.ts)
+} as const;
+
+// ── Input length constraints ──────────────────────────────────────────────────
+// Referenced by any component with a maxlength attribute.
+// Change here to update everywhere.
+
+export const INPUT_CONSTRAINTS = {
+  captureMaxLength:      300,   // SparkInput thought capture
+  libraryNameMaxLength:   60,   // Sidebar library name
+  displayNameMaxLength:   60,   // Onboarding user name
+  stageLabelMaxLength:    24,   // Settings pipeline stage rename
+  thoughtTitleMaxLength: 120,   // Editor thought title
+} as const;
+
+// ── Feature config ────────────────────────────────────────────────────────────
+// All tuneable V1 feature values. V2 reads from here and extends without rewriting.
+// GRAPH_PRESETS re-exported from graphDefaults — single source of truth.
+
+export const FEATURE_CONFIG = {
+  THERMAL_CALENDAR_DAYS:   28,
+  AUTOCOMPLETE_MAX_TERMS: 500,
+  JANITOR_BATCH_SIZE:      50,
+  GHOST_NODE_OPACITY:    0.35,
+  FOLD_PERSIST:          false as boolean,   // V2 flips to true to persist fold state
+  SERENDIPITY_INTERVAL_MS: 86_400_000,       // 24 hours in ms
+  TOOLBAR_ACTIONS: [
+    { id: 'bold',   i18nKey: 'feature.toolbar.bold',   wrap: ['**', '**']     },
+    { id: 'italic', i18nKey: 'feature.toolbar.italic', wrap: ['*',  '*']      },
+    { id: 'code',   i18nKey: 'feature.toolbar.code',   wrap: ['`',  '`']      },
+    { id: 'link',   i18nKey: 'feature.toolbar.link',   wrap: ['[',  '](url)'] },
+  ],
+  GRAPH_PRESETS,
 } as const;

@@ -21,7 +21,7 @@ export type Action =
 
 // Default bindings — format: "modifier+key" (all lowercase)
 // modifier: "cmd" = Meta on Mac / Ctrl on Win/Linux; "ctrl" = always Ctrl
-const DEFAULT_BINDINGS: Record<Action, string> = {
+export const DEFAULT_BINDINGS: Record<Action, string> = {
 	commandPalette: 'cmd+k',
 	newThought:     'cmd+n',
 	focusSearch:    'cmd+f',
@@ -42,7 +42,7 @@ let _attached = false;
 
 /** Normalise a binding string to a canonical combo key, e.g. "cmd+k" → "Meta+k" / "Control+k" */
 function resolveCombo(binding: string): string {
-	const isMac = typeof navigator !== 'undefined' && navigator.platform.startsWith('Mac');
+	const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPod|iPad/.test(navigator.userAgent);
 	return binding
 		.toLowerCase()
 		.replace('cmd', isMac ? 'Meta' : 'Control')

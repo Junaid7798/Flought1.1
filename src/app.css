@@ -19,8 +19,43 @@
   --shadow-dropdown: rgba(0,0,0,0.4);
   --overlay-backdrop: rgba(6,6,14,0.7);
   --brand-tint:     rgba(34,211,238,0.1);
-  --brand-glow:     rgba(34,211,238,0.12);
+  --brand-glow:     rgba(34,211,238,0.28);
   --momentum-bar-width: 180px;
+
+  /* ── Glassmorphism tokens ─────────────────────────────────────────── */
+  /* Semi-transparent backgrounds — blur reveals graph/content behind   */
+  --glass-panel:    rgba(20, 20, 36, 0.72);   /* sidebar, topbar         */
+  --glass-surface:  rgba(28, 28, 48, 0.80);   /* cards, dropdowns        */
+  --glass-overlay:  rgba(14, 14, 26, 0.88);   /* modals, command palette */
+  --glass-blur:     saturate(180%) blur(20px);
+  --glass-blur-sm:  saturate(160%) blur(12px);
+
+  /* ── Graph rendering tokens ─────────────────────────────────────────  */
+  /* Defined as CSS vars so light theme can override them                 */
+  --edge-colour:       rgba(255,255,255,0.15); /* graph edge stroke        */
+  --brand-tint-subtle: rgba(34,211,238,0.06);  /* command palette ring     */
+}
+
+/* ── Light theme overrides ──────────────────────────────────────────────── */
+/* Applied by toggling class on <html>. Brand/accent colours stay the same. */
+
+html.theme-light {
+  --bg-deep:           #F8F9FC;
+  --bg-panel:          #FFFFFF;
+  --bg-surface:        #F1F4F9;
+  --bg-hover:          #E8ECF4;
+  --text-primary:      #0F172A;
+  --text-secondary:    #475569;
+  --text-muted:        #94A3B8;
+  --border:            rgba(0,0,0,0.08);
+  --border-strong:     rgba(0,0,0,0.16);
+  --shadow-dropdown:   rgba(0,0,0,0.12);
+  --overlay-backdrop:  rgba(248,249,252,0.85);
+  --glass-panel:       rgba(255,255,255,0.80);
+  --glass-surface:     rgba(241,244,249,0.88);
+  --glass-overlay:     rgba(255,255,255,0.92);
+  --edge-colour:       rgba(0,0,0,0.12);        /* darker edges on light bg */
+  --brand-tint-subtle: rgba(34,211,238,0.08);
 }
 
 body {
@@ -29,4 +64,40 @@ body {
   font-family: 'Geist', sans-serif;
   margin: 0;
   padding: 0;
+}
+
+/* ── Global keyboard focus ring ─────────────────────────────────────────── */
+/* Applies to every button/input/select/textarea across all components.      */
+/* Components that need a custom ring can override with their own rule.       */
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* ── Editor — Syntax Hiding (B.1) ───────────────────────────────────────── */
+/* Hides formatting markers when cursor is outside the node.                 */
+/* font-size:0 collapses the glyph; opacity:0 hides it for screen readers.  */
+
+.cm-syntax-hidden {
+  font-size: 0;
+  opacity: 0;
+}
+
+/* Heading visual hierarchy — size only, colour inherits var(--text-primary) */
+:root {
+  --editor-h1-size: 1.5rem;
+  --editor-h2-size: 1.25rem;
+  --editor-h3-size: 1.1rem;
+}
+
+.cm-h1 { font-size: var(--editor-h1-size); font-weight: 700; }
+.cm-h2 { font-size: var(--editor-h2-size); font-weight: 700; }
+.cm-h3 { font-size: var(--editor-h3-size); font-weight: 600; }
+
+/* ── Editor — Smart Lists (B.7) ─────────────────────────────────────────── */
+
+.cm-content .cm-line[data-list] {
+  padding-left: 1.5em;
+  text-indent: -1.5em;
 }

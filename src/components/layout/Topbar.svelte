@@ -75,8 +75,10 @@
 		justify-content: space-between;
 		height: 48px;
 		padding: 0 1rem 0 0.75rem;
-		background: var(--bg-panel);
-		border-bottom: 1px solid var(--border);
+		background: var(--glass-panel);
+		backdrop-filter: var(--glass-blur);
+		-webkit-backdrop-filter: var(--glass-blur);
+		border-bottom: 1px solid var(--border-strong);
 		flex-shrink: 0;
 		gap: 0.5rem;
 	}
@@ -144,7 +146,9 @@
 		gap: 0.5rem;
 		height: 32px;
 		padding: 0 0.75rem;
-		background: var(--bg-surface);
+		background: var(--glass-surface);
+		backdrop-filter: var(--glass-blur-sm);
+		-webkit-backdrop-filter: var(--glass-blur-sm);
 		border: 1px solid var(--border-strong);
 		border-radius: 8px;
 		cursor: pointer;

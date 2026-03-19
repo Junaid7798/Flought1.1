@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { $t as t } from '$lib/i18n';
-	import { createThought } from '$lib/db';
+	import { createThought, updateThought } from '$lib/db';
 	import { showToast } from '$lib/stores/toastStore.svelte';
+	import { uiStore } from '$lib/stores/uiStore.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -21,7 +22,14 @@
 	async function submit() {
 		const text = value.trim();
 		if (!text) return;
-		await createThought(libraryId, text);
+		const newId = await createThought(libraryId, text, false);
+		if (uiStore.sparkInputPrefillCoords !== null) {
+			await updateThought(newId, {
+				x_pos: uiStore.sparkInputPrefillCoords.x,
+				y_pos: uiStore.sparkInputPrefillCoords.y,
+			});
+			uiStore.sparkInputPrefillCoords = null;
+		}
 		value = '';
 		triggerBounce();
 		const stage = t('stage.1');

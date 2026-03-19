@@ -180,12 +180,14 @@
 		left: 50%;
 		transform: translateX(-50%);
 		width: min(600px, calc(100vw - max(2rem, env(safe-area-inset-left) + env(safe-area-inset-right) + 1.5rem)));
-		background: var(--bg-surface);
+		background: var(--glass-overlay);
+		backdrop-filter: var(--glass-blur);
+		-webkit-backdrop-filter: var(--glass-blur);
 		border: 1px solid var(--border-strong);
-		border-radius: 12px;
+		border-radius: 16px;
 		z-index: 201;
 		overflow: hidden;
-		box-shadow: 0 24px 64px var(--shadow-dropdown);
+		box-shadow: 0 24px 64px var(--shadow-dropdown), 0 0 0 1px rgba(34,211,238,0.06);
 	}
 
 	.search-input {

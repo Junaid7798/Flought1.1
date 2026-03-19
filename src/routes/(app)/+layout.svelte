@@ -49,6 +49,19 @@
 			return;
 		}
 
+		// 3b. Bootstrap theme — read DB value and apply CSS class
+		// app.html inline script handles flash prevention via localStorage;
+		// this ensures the DB value wins on cold load (e.g. after localStorage clear).
+		const savedSettings = await getUserSettings();
+		if (savedSettings?.theme === 'light') {
+			uiStore.theme = 'light';
+			document.documentElement.classList.add('theme-light');
+			try { localStorage.setItem('flought_theme', 'light'); } catch(e) {}
+		} else {
+			document.documentElement.classList.remove('theme-light');
+			try { localStorage.removeItem('flought_theme'); } catch(e) {}
+		}
+
 		// 4. Listen for auth state changes (token refresh, sign-out)
 		const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
 			if (event === 'SIGNED_OUT' || !newSession) {
