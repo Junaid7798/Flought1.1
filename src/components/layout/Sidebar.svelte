@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { ChevronLeft, ChevronDown, Pin, PinOff, Settings, BookOpen, Hash } from 'lucide-svelte';
 	import { $t as t } from '$lib/i18n';
 	import { PIPELINE_STATES } from '$lib/config';
 	import {
@@ -70,20 +72,20 @@
 		[...new Set(thoughts.map((th) => th.topic).filter(Boolean))].sort()
 	);
 
-	// Pinned thoughts — sorted by updated_at desc
 	const pinnedThoughts = $derived(
 		thoughts
 			.filter((th) => pinnedIds.has(th.id))
 			.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
 	);
 
-	// Recent thoughts — last 5 updated, excluding pinned
 	const recentThoughts = $derived(
 		thoughts
 			.filter((th) => !pinnedIds.has(th.id))
 			.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
 			.slice(0, 5)
 	);
+
+	const currentPath = $derived($page.url.pathname);
 
 	// ── Library switcher ──────────────────────────────────────────────────────
 
@@ -156,12 +158,6 @@
 		return TOPIC_COLOURS[index % TOPIC_COLOURS.length];
 	}
 
-	// ── Capture ───────────────────────────────────────────────────────────────
-
-	function openCapture() {
-		uiStore.activeView = 'editor';
-	}
-
 	// ── Resize drag ──────────────────────────────────────────────────────────
 
 	const MIN_WIDTH = 200;
@@ -183,7 +179,6 @@
 			resizing = false;
 			window.removeEventListener('mousemove', onMove);
 			window.removeEventListener('mouseup', onUp);
-			// Debounce the DB write — only persist after dragging stops
 			if (saveWidthTimer) clearTimeout(saveWidthTimer);
 			saveWidthTimer = setTimeout(() => {
 				updateUserSettings({ sidebar_width: uiStore.sidebarWidth });
@@ -193,16 +188,27 @@
 		window.addEventListener('mousemove', onMove);
 		window.addEventListener('mouseup', onUp);
 	}
-
 </script>
 
 <nav class="sidebar" aria-label="Sidebar">
 
-	<!-- ── Brand + collapse toggle ─────────────────────────────────────────── -->
+	<!-- ── Brand ────────────────────────────────────────────────────────────── -->
 	<div class="brand">
-		<div class="brand-text">
-			<span class="brand-name">Flought</span>
-			<span class="brand-tag">{t('brand.tagline')}</span>
+		<div class="brand-inner">
+			<div class="brand-logo" aria-hidden="true">
+				<svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+					<circle cx="11" cy="11" r="10" stroke="var(--color-brand)" stroke-width="1.5" opacity="0.4"/>
+					<circle cx="11" cy="11" r="5" fill="var(--color-brand)" opacity="0.9"/>
+					<line x1="11" y1="1" x2="11" y2="5" stroke="var(--color-brand)" stroke-width="1.5" opacity="0.5"/>
+					<line x1="11" y1="17" x2="11" y2="21" stroke="var(--color-brand)" stroke-width="1.5" opacity="0.5"/>
+					<line x1="1" y1="11" x2="5" y2="11" stroke="var(--color-brand)" stroke-width="1.5" opacity="0.5"/>
+					<line x1="17" y1="11" x2="21" y2="11" stroke="var(--color-brand)" stroke-width="1.5" opacity="0.5"/>
+				</svg>
+			</div>
+			<div class="brand-text">
+				<span class="brand-name">Flought</span>
+				<span class="brand-tag">{t('brand.tagline')}</span>
+			</div>
 		</div>
 		<button
 			class="collapse-btn"
@@ -210,15 +216,20 @@
 			aria-label={uiStore.sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
 			type="button"
 		>
-			<span class="collapse-chevron" class:flipped={uiStore.sidebarCollapsed}>‹</span>
+			<span class="collapse-chevron" class:flipped={uiStore.sidebarCollapsed}>
+				<ChevronLeft size={16} strokeWidth={2} />
+			</span>
 		</button>
 	</div>
 
 	<!-- ── Library Switcher ───────────────────────────────────────────────── -->
 	<div class="section library-section">
-		<button class="library-trigger" onclick={toggleDropdown} aria-expanded={dropdownOpen}>
+		<button class="library-trigger" onclick={toggleDropdown} aria-expanded={dropdownOpen} type="button">
+			<BookOpen size={13} strokeWidth={2} class="lib-icon" />
 			<span class="library-name">{activeLibrary?.name ?? '…'}</span>
-			<span class="chevron" class:open={dropdownOpen}>▾</span>
+			<span class="chevron" class:open={dropdownOpen}>
+				<ChevronDown size={13} strokeWidth={2} />
+			</span>
 		</button>
 
 		{#if dropdownOpen}
@@ -230,6 +241,7 @@
 						role="option"
 						aria-selected={lib.id === activeLibraryId}
 						onclick={() => switchLibrary(lib.id)}
+						type="button"
 					>
 						{lib.name}
 					</button>
@@ -248,6 +260,7 @@
 						onclick={handleCreateLibrary}
 						disabled={!newLibName.trim() || creatingLib}
 						aria-label={t('library.create')}
+						type="button"
 					>+</button>
 				</div>
 			</div>
@@ -263,6 +276,7 @@
 				class:stage-active={uiStore.focusedStageId === state.id}
 				style="--stage-colour: var({state.cssVar})"
 				onclick={() => selectStage(state.id)}
+				type="button"
 			>
 				<span class="stage-dot"></span>
 				<span class="stage-name">{pipelineLabels[i]}</span>
@@ -281,7 +295,9 @@
 		<div class="section">
 			<button class="section-header" onclick={() => (pinnedOpen = !pinnedOpen)} type="button">
 				<span class="section-label">Pinned</span>
-				<span class="section-chevron" class:open={pinnedOpen}>▾</span>
+				<span class="section-chevron" class:open={pinnedOpen}>
+					<ChevronDown size={11} strokeWidth={2} />
+				</span>
 			</button>
 			<div class="accordion-body" class:visible={pinnedOpen}>
 				{#each pinnedThoughts as thought}
@@ -298,7 +314,9 @@
 							onclick={() => togglePin(thought.id)}
 							aria-label="Unpin"
 							type="button"
-						>⊛</button>
+						>
+							<PinOff size={12} strokeWidth={2} />
+						</button>
 					</div>
 				{/each}
 			</div>
@@ -310,7 +328,9 @@
 		<div class="section">
 			<button class="section-header" onclick={() => (recentOpen = !recentOpen)} type="button">
 				<span class="section-label">Recent</span>
-				<span class="section-chevron" class:open={recentOpen}>▾</span>
+				<span class="section-chevron" class:open={recentOpen}>
+					<ChevronDown size={11} strokeWidth={2} />
+				</span>
 			</button>
 			<div class="accordion-body" class:visible={recentOpen}>
 				{#each recentThoughts as thought}
@@ -327,7 +347,9 @@
 							onclick={() => togglePin(thought.id)}
 							aria-label="Pin"
 							type="button"
-						>⊙</button>
+						>
+							<Pin size={12} strokeWidth={2} />
+						</button>
 					</div>
 				{/each}
 			</div>
@@ -338,8 +360,13 @@
 	{#if topics.length > 0}
 		<div class="section">
 			<button class="section-header" onclick={() => (topicsOpen = !topicsOpen)} type="button">
-				<span class="section-label">{t('topic.plural')}</span>
-				<span class="section-chevron" class:open={topicsOpen}>▾</span>
+				<span class="section-label-row">
+					<Hash size={11} strokeWidth={2.5} />
+					<span class="section-label">{t('topic.plural')}</span>
+				</span>
+				<span class="section-chevron" class:open={topicsOpen}>
+					<ChevronDown size={11} strokeWidth={2} />
+				</span>
 			</button>
 			<div class="accordion-body" class:visible={topicsOpen}>
 				{#each topics as topic, i}
@@ -355,16 +382,34 @@
 	<!-- ── Spacer ─────────────────────────────────────────────────────────── -->
 	<div class="spacer"></div>
 
-	<!-- ── Sync badge ─────────────────────────────────────────────────────── -->
-	<div class="sync-badge">
-		<SyncStatusBadge status={uiStore.syncStatus} lastSyncedAt={uiStore.lastSyncedAt} />
-	</div>
+	<!-- ── Bottom actions ─────────────────────────────────────────────────── -->
+	<div class="bottom-area">
+		<!-- Sync badge -->
+		<div class="sync-row">
+			<SyncStatusBadge status={uiStore.syncStatus} lastSyncedAt={uiStore.lastSyncedAt} />
+		</div>
 
-	<!-- ── Capture button ─────────────────────────────────────────────────── -->
-	<button class="capture-btn" onclick={openCapture}>
-		<span aria-hidden="true">+</span>
-		{t('capture.prompt')}
-	</button>
+		<!-- Settings link -->
+		<button
+			class="settings-link"
+			class:settings-link--active={currentPath.startsWith('/settings')}
+			onclick={() => goto('/settings')}
+			type="button"
+		>
+			<Settings size={15} strokeWidth={1.8} />
+			<span>{t('nav.settings')}</span>
+		</button>
+
+		<!-- Capture button -->
+		<button
+			class="capture-btn"
+			onclick={() => { uiStore.activeView = 'editor'; }}
+			type="button"
+		>
+			<span aria-hidden="true">+</span>
+			{t('capture.prompt')}
+		</button>
+	</div>
 
 </nav>
 
@@ -383,8 +428,7 @@
 		display: flex;
 		flex-direction: column;
 		height: 100dvh;
-		/* Glassmorphism — desktop only per FIX-20 (backdrop-filter kills Android fps) */
-		background-color: var(--bg-panel);
+		background: var(--bg-panel);
 		border-right: 1px solid var(--border);
 		overflow-y: auto;
 		overflow-x: hidden;
@@ -394,9 +438,6 @@
 
 	@media (min-width: 768px) {
 		.sidebar {
-			background-color: transparent;
-			background: var(--bg-panel);
-			opacity: 0.92;
 			backdrop-filter: blur(24px);
 			-webkit-backdrop-filter: blur(24px);
 		}
@@ -408,26 +449,41 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 1.5rem 1rem 0.75rem;
+		padding: 1.25rem 0.875rem 1rem;
 		gap: 0.5rem;
+	}
+
+	.brand-inner {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+	}
+
+	.brand-logo {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.brand-text {
 		display: flex;
 		flex-direction: column;
-		gap: 0.125rem;
+		gap: 0.0625rem;
 	}
 
 	.brand-name {
-		font-size: 1.0625rem;
+		font-size: 1rem;
 		font-weight: 800;
 		color: var(--text-primary);
-		letter-spacing: -0.01em;
+		letter-spacing: -0.02em;
+		line-height: 1.2;
 	}
 
 	.brand-tag {
-		font-size: 0.6875rem;
+		font-size: 0.625rem;
 		color: var(--text-muted);
+		letter-spacing: 0.02em;
 	}
 
 	.collapse-btn {
@@ -451,10 +507,10 @@
 	}
 
 	.collapse-chevron {
-		font-size: 1rem;
-		display: block;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		transition: transform 120ms;
-		transform: rotate(0deg);
 	}
 
 	.collapse-chevron.flipped {
@@ -464,22 +520,34 @@
 	/* ── Sections ───────────────────────────────────────────────────────── */
 
 	.section {
-		padding: 0.5rem 0;
+		padding: 0.375rem 0;
 		border-top: 1px solid var(--border);
 	}
 
 	.section-label {
-		font-size: 0.6875rem;
+		font-size: 0.625rem;
 		font-weight: 600;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--text-muted);
-		padding: 0.5rem 1rem 0.375rem;
+		padding: 0.5rem 1rem 0.25rem;
 		margin: 0;
 		line-height: inherit;
+		display: block;
 	}
 
-	/* Collapsible section header (Pipeline uses plain label; others use button) */
+	.section-label-row {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.5rem 1rem 0.25rem;
+		color: var(--text-muted);
+	}
+
+	.section-label-row .section-label {
+		padding: 0;
+	}
+
 	.section-header {
 		display: flex;
 		align-items: center;
@@ -493,10 +561,11 @@
 	}
 
 	.section-chevron {
-		font-size: 0.625rem;
-		color: var(--text-muted);
+		display: flex;
+		align-items: center;
 		padding-right: 1rem;
-		transition: transform 150ms;
+		color: var(--text-muted);
+		transition: transform 120ms;
 		transform: rotate(-90deg);
 	}
 
@@ -504,7 +573,6 @@
 		transform: rotate(0deg);
 	}
 
-	/* Accordion body — Rule 9: opacity + translateY ONLY. No height animation. */
 	.accordion-body {
 		display: none;
 	}
@@ -515,14 +583,8 @@
 	}
 
 	@keyframes accordionIn {
-		from {
-			opacity: 0;
-			transform: translateY(-4px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
+		from { opacity: 0; transform: translateY(-4px); }
+		to   { opacity: 1; transform: translateY(0); }
 	}
 
 	/* ── Library switcher ───────────────────────────────────────────────── */
@@ -533,16 +595,15 @@
 
 	.library-trigger {
 		width: 100%;
-		min-height: 44px;
+		min-height: 40px;
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		padding: 0.5rem 1rem;
+		padding: 0.375rem 0.875rem;
 		background: none;
 		border: none;
 		cursor: pointer;
 		color: var(--text-primary);
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 600;
 		font-family: inherit;
 		gap: 0.5rem;
@@ -551,6 +612,12 @@
 
 	.library-trigger:hover {
 		background: var(--bg-hover);
+	}
+
+	/* svelte component class on lucide icon */
+	:global(.lib-icon) {
+		color: var(--text-muted);
+		flex-shrink: 0;
 	}
 
 	.library-name {
@@ -562,9 +629,11 @@
 	}
 
 	.chevron {
-		font-size: 0.75rem;
+		display: flex;
+		align-items: center;
 		color: var(--text-muted);
 		transition: transform 150ms;
+		flex-shrink: 0;
 	}
 
 	.chevron.open {
@@ -586,7 +655,7 @@
 
 	.dropdown-item {
 		width: 100%;
-		min-height: 44px;
+		min-height: 40px;
 		display: flex;
 		align-items: center;
 		padding: 0 1rem;
@@ -594,7 +663,7 @@
 		border: none;
 		cursor: pointer;
 		color: var(--text-secondary);
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-family: inherit;
 		text-align: left;
 		transition: background 120ms, color 120ms;
@@ -619,7 +688,7 @@
 
 	.create-input {
 		flex: 1;
-		min-height: 36px;
+		min-height: 34px;
 		background: var(--bg-panel);
 		border: 1px solid var(--border-strong);
 		border-radius: 6px;
@@ -639,8 +708,8 @@
 	}
 
 	.create-btn {
-		min-width: 36px;
-		min-height: 36px;
+		min-width: 34px;
+		min-height: 34px;
 		background: var(--color-brand);
 		color: var(--bg-deep);
 		border: none;
@@ -660,7 +729,7 @@
 
 	.stage-btn {
 		width: 100%;
-		min-height: 44px;
+		min-height: 36px;
 		display: flex;
 		align-items: center;
 		gap: 0.625rem;
@@ -678,13 +747,13 @@
 	}
 
 	.stage-btn.stage-active {
-		border-left-color: var(--color-brand);
+		border-left-color: var(--stage-colour);
 		background: var(--bg-surface);
 	}
 
 	.stage-dot {
-		width: 8px;
-		height: 8px;
+		width: 7px;
+		height: 7px;
 		border-radius: 50%;
 		background: var(--stage-colour);
 		flex-shrink: 0;
@@ -699,7 +768,7 @@
 
 	.stage-name {
 		flex: 1;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		color: var(--text-secondary);
 		text-align: left;
 	}
@@ -709,10 +778,19 @@
 	}
 
 	.stage-count {
-		font-size: 0.75rem;
-		color: var(--text-secondary);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		background: var(--bg-hover);
+		border-radius: 10px;
+		padding: 0.0625rem 0.375rem;
 		min-width: 1.5ch;
-		text-align: right;
+		text-align: center;
+	}
+
+	.stage-btn.stage-active .stage-count {
+		background: var(--bg-surface);
+		color: var(--text-secondary);
 	}
 
 	/* ── Pinned / Recent thought rows ───────────────────────────────────── */
@@ -721,7 +799,7 @@
 		display: flex;
 		align-items: center;
 		padding: 0 0.5rem 0 1rem;
-		min-height: 44px;
+		min-height: 36px;
 		gap: 0.25rem;
 	}
 
@@ -747,8 +825,8 @@
 
 	.pin-btn {
 		flex-shrink: 0;
-		width: 28px;
-		height: 28px;
+		width: 26px;
+		height: 26px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -756,7 +834,6 @@
 		border: none;
 		cursor: pointer;
 		color: var(--text-muted);
-		font-size: 0.875rem;
 		border-radius: 4px;
 		opacity: 0;
 		transition: opacity 120ms, color 120ms;
@@ -777,13 +854,20 @@
 		display: flex;
 		align-items: center;
 		gap: 0.625rem;
-		padding: 0.5rem 1rem;
-		min-height: 36px;
+		padding: 0.375rem 1rem;
+		min-height: 32px;
+		cursor: pointer;
+		border-radius: 0;
+		transition: background 120ms;
+	}
+
+	.topic-row:hover {
+		background: var(--bg-hover);
 	}
 
 	.topic-dot {
-		width: 8px;
-		height: 8px;
+		width: 6px;
+		height: 6px;
 		border-radius: 50%;
 		flex-shrink: 0;
 	}
@@ -796,25 +880,55 @@
 		white-space: nowrap;
 	}
 
-	/* ── Bottom ─────────────────────────────────────────────────────────── */
+	/* ── Bottom area ─────────────────────────────────────────────────────── */
 
 	.spacer {
 		flex: 1;
 	}
 
-	.sync-badge {
+	.bottom-area {
+		border-top: 1px solid var(--border);
+		padding: 0.5rem 0 0;
+	}
+
+	.sync-row {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 1rem;
-		border-top: 1px solid var(--border);
+		padding: 0.25rem 0.875rem 0.375rem;
+	}
+
+	.settings-link {
+		width: 100%;
+		min-height: 36px;
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		padding: 0 0.875rem;
+		background: none;
+		border: none;
+		cursor: pointer;
+		color: var(--text-muted);
+		font-size: 0.8125rem;
+		font-family: inherit;
+		text-align: left;
+		border-radius: 0;
+		transition: color 120ms, background 120ms;
+	}
+
+	.settings-link:hover {
+		color: var(--text-secondary);
+		background: var(--bg-hover);
+	}
+
+	.settings-link--active {
+		color: var(--color-brand);
 	}
 
 	.capture-btn {
-		width: calc(100% - 1.5rem);
-		min-height: 44px;
-		margin: 0.625rem 0.75rem;
-		margin-bottom: calc(0.625rem + env(safe-area-inset-bottom));
+		width: calc(100% - 1.25rem);
+		min-height: 40px;
+		margin: 0.5rem 0.625rem;
+		margin-bottom: calc(0.5rem + env(safe-area-inset-bottom));
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -823,11 +937,12 @@
 		color: var(--bg-deep);
 		border: none;
 		border-radius: 10px;
-		font-size: 0.9375rem;
+		font-size: 0.875rem;
 		font-weight: 700;
 		font-family: inherit;
 		cursor: pointer;
 		transition: opacity 120ms;
+		box-shadow: 0 0 16px var(--brand-glow);
 	}
 
 	.capture-btn:hover {
@@ -845,6 +960,7 @@
 		z-index: 200;
 		background: transparent;
 		transition: background 150ms;
+		border: none;
 	}
 
 	.resize-handle:hover,
@@ -856,10 +972,7 @@
 	/* ── Mobile: hide entirely — MobileDock handles nav ─────────────────── */
 
 	@media (max-width: 767px) {
-		.sidebar {
-			display: none;
-		}
-
+		.sidebar,
 		.resize-handle {
 			display: none;
 		}

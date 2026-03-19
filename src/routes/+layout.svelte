@@ -7,6 +7,7 @@
 	import { getUserProfile, getDefaultLibrary, getUserSettings, createThought, updateThought } from '$lib/db';
 	import { initializeShortcuts, onAction, destroyShortcuts } from '$lib/ShortcutManager';
 	import Sidebar from '../components/layout/Sidebar.svelte';
+	import Topbar from '../components/layout/Topbar.svelte';
 	import MobileDock from '../components/layout/MobileDock.svelte';
 	import SparkInput from '../components/capture/SparkInput.svelte';
 	import CommandPalette from '../components/search/CommandPalette.svelte';
@@ -119,6 +120,9 @@
 
 		<!-- Main content column -->
 		<div class="main-col">
+			<!-- Desktop topbar: view tabs + search + settings -->
+			<Topbar />
+
 			<main class="main">
 				{@render children()}
 			</main>

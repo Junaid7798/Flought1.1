@@ -1,7 +1,9 @@
 export const DEFAULT_STRINGS: Record<string, string> = {
-  'nav.map': 'The Map',
+  'nav.map': 'Map',
   'nav.editor': 'Editor',
   'nav.focus': 'Focus',
+  'nav.settings': 'Settings',
+  'nav.views': 'Views',
   'capture.prompt': 'Capture a thought...',
   'thought.singular': 'Thought',
   'thought.plural': 'Thoughts',
