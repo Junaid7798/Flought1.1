@@ -51,6 +51,14 @@
 		activeThoughtId={effectiveActiveId}
 	/>
 
+	<!-- Empty state — shown when library has no thoughts -->
+	{#if totalCount === 0}
+		<div class="empty-state" aria-live="polite">
+			<p class="empty-title">{t('map.emptyTitle')}</p>
+			<p class="empty-hint">{t('map.emptyHint')}</p>
+		</div>
+	{/if}
+
 	<!-- Floating toolbar -->
 	<div class="toolbar" role="toolbar" aria-label={t('nav.map')}>
 		<label class="toggle">
@@ -71,6 +79,30 @@
 		width: 100%;
 		height: 100%;
 		overflow: hidden;
+	}
+
+	.empty-state {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+		gap: 0.5rem;
+	}
+
+	.empty-title {
+		font-size: 1.0625rem;
+		font-weight: 600;
+		color: var(--text-secondary);
+		margin: 0;
+	}
+
+	.empty-hint {
+		font-size: 0.875rem;
+		color: var(--text-muted);
+		margin: 0;
 	}
 
 	.toolbar {

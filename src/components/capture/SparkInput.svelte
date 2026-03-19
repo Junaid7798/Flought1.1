@@ -130,7 +130,6 @@
 
 	.spark-input::placeholder {
 		color: var(--text-muted);
-		opacity: 0.4;
 	}
 
 	/* Mobile layout is handled by MobileDock (bottom sheet context) */

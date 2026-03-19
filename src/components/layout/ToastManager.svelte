@@ -51,7 +51,7 @@
 		color: var(--text-primary);
 		pointer-events: all;
 		/* No box-shadow animation — just static shadow, Rule 9 compliant */
-		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+		box-shadow: 0 4px 24px var(--shadow-dropdown);
 		white-space: nowrap;
 	}
 

@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import { Map, PenLine, Plus, X } from 'lucide-svelte';
+	import { Capacitor } from '@capacitor/core';
+	import { Keyboard } from '@capacitor/keyboard';
 	import { $t as t } from '$lib/i18n';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
 	import SparkInput from '../capture/SparkInput.svelte';
@@ -14,6 +17,20 @@
 	// ── State ─────────────────────────────────────────────────────────────────
 
 	let captureOpen = $state(false);
+	let dockHidden = $state(false);
+
+	// ── Keyboard listeners (native only) ──────────────────────────────────────
+
+	onMount(() => {
+		if (!Capacitor.isNativePlatform()) return;
+		Keyboard.addListener('keyboardWillShow', () => { dockHidden = true; });
+		Keyboard.addListener('keyboardWillHide', () => { dockHidden = false; });
+	});
+
+	onDestroy(() => {
+		if (!Capacitor.isNativePlatform()) return;
+		Keyboard.removeAllListeners();
+	});
 
 	// ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -59,7 +76,7 @@
 </div>
 
 <!-- ── Dock ───────────────────────────────────────────────────────────── -->
-<nav class="dock" aria-label="Navigation">
+<nav class="dock" class:dock-hidden={dockHidden} aria-label="Navigation">
 	<button
 		class="dock-tab"
 		class:active={uiStore.activeView === 'map' && !captureOpen}
@@ -184,12 +201,20 @@
 
 		/* Desktop: hidden — Sidebar handles navigation */
 		display: none;
+		transition: transform 180ms ease, opacity 150ms ease;
 	}
 
 	@media (max-width: 767px) {
 		.dock {
 			display: flex;
 		}
+	}
+
+	.dock.dock-hidden {
+		transform: translateY(100%);
+		opacity: 0;
+		pointer-events: none;
+		transition: transform 180ms ease, opacity 150ms ease;
 	}
 
 	/* ── Tabs ────────────────────────────────────────────────────────────── */
@@ -214,6 +239,12 @@
 	.dock-tab:hover,
 	.dock-tab.active {
 		color: var(--color-brand);
+	}
+
+	.dock-tab:focus-visible {
+		outline: 2px solid var(--color-brand);
+		outline-offset: -4px;
+		border-radius: 6px;
 	}
 
 	.tab-label {

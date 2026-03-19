@@ -29,8 +29,8 @@
 </script>
 
 {#if total > 0}
-	<div class="momentum" aria-label={t('momentum.label')}>
-		<p class="momentum-heading">{t('momentum.label')}</p>
+	<div class="momentum" role="img" aria-label={t('momentum.label')}>
+		<h2 class="momentum-heading">{t('momentum.label')}</h2>
 		{#each stagePcts as stage}
 			<div class="bar-row">
 				<span class="bar-label">{stage.label}</span>
@@ -62,6 +62,7 @@
 		color: var(--text-muted);
 		padding: 0.5rem 1rem 0.375rem;
 		margin: 0;
+		line-height: inherit;
 	}
 
 	.bar-row {

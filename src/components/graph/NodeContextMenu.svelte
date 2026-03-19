@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { Capacitor } from '@capacitor/core';
+	import { Haptics, ImpactStyle } from '@capacitor/haptics';
 	import { $t as t } from '$lib/i18n';
 	import { PIPELINE_STATES } from '$lib/config';
 	import { updateThought, softDeleteThought, getUserSettings, updateUserSettings } from '$lib/db';
@@ -29,6 +31,9 @@
 
 	async function handleChangeStage(stageId: 1 | 2 | 3 | 4) {
 		onclose();
+		if (Capacitor.isNativePlatform()) {
+			await Haptics.impact({ style: ImpactStyle.Light });
+		}
 		await updateThought(thoughtId, { meta_state: stageId });
 	}
 

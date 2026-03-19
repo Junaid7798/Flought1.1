@@ -9,54 +9,66 @@
 
 ## Resume from here
 
-Phase: 10 — Device Testing & Polish (or Phase 6.5 — Store Submissions)
-Next task: Per build plan. Phase 9 is complete. The next major phase depends on the build plan.
+Phase: UI/UX Polish (COMPLETE — criticals + medium done)
+Next task: Phase 11 — per build plan (or further polish per user)
 Model to use: Sonnet 4.6
 
 ---
 
 ## Completed this session (2026-03-19)
 
-Phase 7 — AAA UI & The Adaptive Shell (complete):
-- Settings page, font size, sidebar resize persistence, pinned thoughts, toasts
+Phase 10, Task 10.1 — Native Mobile APIs (complete):
+- Installed @capacitor/haptics, @capacitor/share, @capacitor/keyboard, @capgo/capacitor-navigation-bar
+- thought/[id]/+page.svelte: Share button in mobile-header (Capacitor.isNativePlatform() guard)
+- MobileDock.svelte: hide dock on keyboardWillShow, restore on keyboardWillHide
+- (app)/+layout.svelte: set Android nav bar to --bg-deep on mount (android platform only)
+- FrontmatterMask.svelte + NodeContextMenu.svelte: Haptics.impact(Light) on stage changes
 
-Phase 8 — The Hybrid Editor & Shortcut Engine (complete):
-- ShortcutManager.ts — global keydown manager with user-configurable bindings
-- DocumentOutline.svelte — headings panel (400ms poll, syntaxTree ATXHeading1/2/3)
-- embedWidget.ts — block-level transclusion (![[Title]] → embed cards with stage pill + snippet)
-- editorContext.ts — shared EditorView via Svelte context
+Phase 10, Task 10.2 — Web Drag-and-Drop (complete):
+- +layout.svelte: window dragover/drop listeners (mount/destroy)
+- Filters to .md files only; strips extension for title; File.text() for content
+- createThought() + updateThought() via $lib/db; goto(/thought/${id}) on import
 
-Phase 9 — Graph Intelligence & Widgets (complete):
-- graphWorker.ts — focusStage/clearFocusStage messages with forceX/forceY (semantic gravity)
-- graphWorker.ts — computeHulls() using d3-polygon polygonHull, sent with positions
-- GraphCanvas.svelte — hull drawing (faint coloured blobs), getComputedStyle colour resolution (FIX-18/FIX-24)
-- GraphCanvas.svelte — $effect for uiStore.focusedStageId → worker focusStage messages
-- GraphCanvas.svelte — right-click context menu via handleContextMenu + NodeContextMenu
-- NodeContextMenu.svelte — Open, Change Stage (submenu), Pin/Unpin, Delete
-- PipelineMomentum.svelte — sidebar progress bars per stage (scaleX animation, FIX-19/FIX-25)
-- uiStore.svelte.ts — added focusedStageId field
-- Sidebar.svelte — stage filter now sets uiStore.focusedStageId, PipelineMomentum added
-- app.css — --momentum-bar-width: 180px
-- i18n.ts — context.open/changeStage/pin/unpin/delete, momentum.label keys
+UI/UX Polish — Criticals (complete 2026-03-19):
+- #29: Map empty state — "Your graph is empty" + hint when totalCount===0
+- #16: CommandPalette keyboard active item — outline: 2px solid --color-brand
+- #34: SparkInput placeholder opacity:0.4 removed — now uses --text-muted at full opacity
+- #4: Sidebar thought rows min-height 36px → 44px (touch target compliance)
+- #24 (bonus): CommandPalette width uses safe-area-aware calc on narrow screens
+
+UI/UX Polish — Medium (complete 2026-03-19):
+- #7: Share button hover state added (background 120ms, bg-hover)
+- #9: FrontmatterMask stage-select :hover state added (bg-hover + border)
+- #25: Active stage dot opacity 0.5→1 + scale(1.25) on stage-active
+- #33: Stage count color --text-muted → --text-secondary (better contrast)
+- #13: Sidebar collapse-chevron transition 200ms → 120ms (consistent)
+- #35: Capture button transition 150ms → 120ms (consistent)
+- #3: Brand section top padding 1.25rem → 1.5rem (8px grid)
+- #15: MobileDock base transition unified to 180ms/150ms (matches dock-hidden)
+- #6: MobileDock tabs :focus-visible ring (2px brand outline)
+- #26: Colour swatch hover:1.1, active:1.2 (active now > hover, not inverted)
+- #31: Font size buttons aria-current="true" when active
+- #19: PipelineMomentum role="img" for screen readers
+- #32: CommandPalette result titles allow 2-line clamp (line-clamp: 2)
+- #18: Sidebar Pipeline label and Momentum heading <p>→<h2> for semantics
+- #37: Toast box-shadow uses var(--shadow-dropdown) instead of hardcoded rgba
+- #39: FrontmatterMask select/input min-height 30px → 34px (vertical rhythm)
 
 ---
 
 ## Files created or modified this session
 
-### Phase 9 (new files)
-- `src/components/graph/NodeContextMenu.svelte`
-- `src/components/layout/PipelineMomentum.svelte`
-- `snapshots/phase-9-tests.log`
-- `snapshots/phase-9-checklist.md`
+### Phase 10.1 (modified files)
+- `src/routes/(app)/thought/[id]/+page.svelte` — Share button, Capacitor/Share imports
+- `src/components/layout/MobileDock.svelte` — Keyboard listener, dock-hidden state
+- `src/routes/(app)/+layout.svelte` — NavigationBar.setNavigationBarColor on android
+- `src/components/graph/NodeContextMenu.svelte` — Haptics on stage change
+- `src/components/editor/FrontmatterMask.svelte` — Haptics on stage change
+- `src/lib/i18n.ts` — editor.share key
 
-### Phase 9 (modified files)
-- `src/workers/graphWorker.ts` — forceX/forceY, focusStage/clearFocusStage, polygonHull, computeHulls
-- `src/components/graph/GraphCanvas.svelte` — hulls, context menu, focusedStageId $effect
-- `src/lib/stores/uiStore.svelte.ts` — focusedStageId
-- `src/components/layout/Sidebar.svelte` — uiStore.focusedStageId, PipelineMomentum import
-- `src/app.css` — --momentum-bar-width
-- `src/lib/i18n.ts` — context menu + momentum keys
-- `docs/progress.md` — Phase 9 complete + decisions log
+### Phase 10.1 (new files)
+- `snapshots/phase-10-1-checklist.md`
+- `snapshots/phase-10-1-tests.log`
 
 ---
 
@@ -102,37 +114,48 @@ Phase 9 — Graph Intelligence & Widgets (complete):
 ### Phase 9
 - `src/components/graph/NodeContextMenu.svelte`, `src/components/layout/PipelineMomentum.svelte`
 
+### Phase 10
+- Modified: `MobileDock.svelte`, `FrontmatterMask.svelte`, `NodeContextMenu.svelte`
+- Modified: `(app)/+layout.svelte`, `thought/[id]/+page.svelte`, `i18n.ts`
+- Modified: `src/routes/+layout.svelte` — drag-and-drop handlers
+
 ---
 
 ## Build status
 
-npm run check: PASSING (0 errors, 0 warnings)
+npm run check: PASSING (0 errors, 0 warnings, 4120 files)
 npm run test: 42 tests passing (3 test files)
-Last git commit: pending (Phase 9 not yet committed)
+Last git commit: phase-9-verified (Phase 10 Task 10.1 not yet committed)
 Live URL: not yet deployed
 
 ---
 
 ## Architecture critical notes
 
-**Semantic Gravity:**
+**Phase 10 Native APIs:**
+- All Capacitor native calls guarded with `Capacitor.isNativePlatform()` or `Capacitor.getPlatform() === 'android'`
+- NavigationBar uses `@capgo/capacitor-navigation-bar` (official `@capacitor/navigation-bar` package does not exist)
+- NavigationBar.setNavigationBarColor() API: `{ color: string, darkButtons?: boolean }`
+- MobileDock keyboard hide: `transform: translateY(100%)` + `opacity: 0` (Rule 9 compliant)
+
+**Phase 10 Drag-and-Drop:**
+- Listeners on `window` — registered in separate `onMount`, removed in `onDestroy`
+- `File.text()` (not FileReader) — cleaner async API
+- Only first `.md` file imported per drop (prevents race conditions)
+- `updateThought` only called if content is non-empty (avoids overwriting blank state)
+
+**Semantic Gravity (Phase 9):**
 - uiStore.focusedStageId drives both Sidebar highlight and GraphCanvas worker messages
 - Worker applies forceX/forceY with per-node strength function (0.3 pull / -0.1 push)
-- clearFocusStage removes gravity forces entirely
 
 **Convex Hulls (FIX-18/FIX-24):**
 - CSS variables resolved via getComputedStyle on main thread in onMount
 - Worker computes hull coordinates only; main thread maps stageId → colour
-- polygonHull returns null for <3 points or collinear points — handled gracefully
 
-**NodeContextMenu:**
-- Right-click on graph canvas → hit test → shows floating menu at click position
-- Uses invisible backdrop for click-outside dismissal
-- Pin/unpin reads fresh userSettings before toggling (not stale cache)
+**color-mix() debt (resolved Phase 9.3):**
+- thermalPillWidget.ts uses hexToRgb() + rgba() inline — no color-mix() anywhere
 
-**Remind next session (Phase 10):**
-- "Before writing any native API code, resolve the color-mix() debt logged in [PHASE 7] decisions."
-- Pre-existing hover transition patterns (background, color, border-color) throughout components — acceptable for V1 but clean up if performance testing flags them.
+---
 
 ---
 
@@ -149,7 +172,7 @@ None. 0 errors, 0 warnings, 42/42 tests passing.
 - searchWorker lives in `uiStore.searchWorker` — avoids prop drilling across route group layouts
 - D3 simulation runs to completion synchronously in worker; posts positions ONCE
 - d3-polygon added as dependency in Phase 9 for polygonHull
-- HULL_COLOUR is populated once on mount — if theme changes at runtime, hull colours won't update (acceptable for V1, single theme)
+- HULL_COLOUR is populated once on mount — if theme changes at runtime, hull colours won't update (acceptable for V1)
 
 ---
 

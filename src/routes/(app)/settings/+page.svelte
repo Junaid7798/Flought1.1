@@ -131,6 +131,7 @@
 									onclick={() => setFontSize(opt.value)}
 									type="button"
 									style="font-size: {opt.value}px"
+									aria-current={settings?.font_size === opt.value ? "true" : undefined}
 								>
 									{opt.label}
 								</button>
@@ -363,12 +364,12 @@
 	}
 
 	.colour-swatch:hover {
-		transform: scale(1.15);
+		transform: scale(1.1);
 	}
 
 	.colour-swatch.active {
 		border-color: var(--text-primary);
-		transform: scale(1.1);
+		transform: scale(1.2);
 	}
 
 	/* ── Mobile ─────────────────────────────────────────────────────────── */

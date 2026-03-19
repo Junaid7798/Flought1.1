@@ -179,7 +179,7 @@
 		top: 15vh;
 		left: 50%;
 		transform: translateX(-50%);
-		width: min(600px, calc(100vw - 2rem));
+		width: min(600px, calc(100vw - max(2rem, env(safe-area-inset-left) + env(safe-area-inset-right) + 1.5rem)));
 		background: var(--bg-surface);
 		border: 1px solid var(--border-strong);
 		border-radius: 12px;
@@ -225,14 +225,18 @@
 
 	.result-item.active {
 		background: var(--bg-hover);
+		outline: 2px solid var(--color-brand);
+		outline-offset: -2px;
 	}
 
 	.result-title {
 		font-size: 0.9375rem;
 		color: var(--text-primary);
-		white-space: nowrap;
 		overflow: hidden;
-		text-overflow: ellipsis;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
 	}
 
 	.empty {

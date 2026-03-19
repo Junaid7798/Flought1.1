@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { Capacitor } from '@capacitor/core';
+	import { Haptics, ImpactStyle } from '@capacitor/haptics';
 	import { $t as t } from '$lib/i18n';
 	import { PIPELINE_STATES } from '$lib/config';
 	import { parseFrontmatter, serializeFrontmatter } from '$lib/frontmatterParser';
@@ -67,6 +69,9 @@
 		if (!thought) return;
 		const newState = Number((e.target as HTMLSelectElement).value) as 1 | 2 | 3 | 4;
 
+		if (Capacitor.isNativePlatform()) {
+			await Haptics.impact({ style: ImpactStyle.Light });
+		}
 		thought = { ...thought, meta_state: newState };
 		await updateThought(thoughtId, { meta_state: newState });
 		eventBus.emit({ type: 'thought.stage_changed', payload: { id: thoughtId, meta_state: newState } });
@@ -171,10 +176,15 @@
 		font-size: 0.8125rem;
 		font-family: inherit;
 		padding: 0.25rem 0.5rem;
-		min-height: 30px;
+		min-height: 34px;
 		cursor: pointer;
 		outline: none;
 		transition: border-color 120ms;
+	}
+
+	.stage-select:hover {
+		border-color: var(--border-strong);
+		background: var(--bg-hover);
 	}
 
 	.stage-select:focus {
@@ -197,7 +207,7 @@
 		padding: 0.125rem 0;
 		outline: none;
 		transition: border-color 120ms;
-		min-height: 30px;
+		min-height: 34px;
 	}
 
 	.value-input:focus {

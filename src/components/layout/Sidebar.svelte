@@ -256,7 +256,7 @@
 
 	<!-- ── Pipeline ───────────────────────────────────────────────────────── -->
 	<div class="section">
-		<p class="section-label">{t('pipeline.label')}</p>
+		<h2 class="section-label">{t('pipeline.label')}</h2>
 		{#each PIPELINE_STATES as state, i}
 			<button
 				class="stage-btn"
@@ -408,7 +408,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 1.25rem 1rem 0.75rem;
+		padding: 1.5rem 1rem 0.75rem;
 		gap: 0.5rem;
 	}
 
@@ -453,7 +453,7 @@
 	.collapse-chevron {
 		font-size: 1rem;
 		display: block;
-		transition: transform 200ms;
+		transition: transform 120ms;
 		transform: rotate(0deg);
 	}
 
@@ -476,6 +476,7 @@
 		color: var(--text-muted);
 		padding: 0.5rem 1rem 0.375rem;
 		margin: 0;
+		line-height: inherit;
 	}
 
 	/* Collapsible section header (Pipeline uses plain label; others use button) */
@@ -687,6 +688,13 @@
 		border-radius: 50%;
 		background: var(--stage-colour);
 		flex-shrink: 0;
+		opacity: 0.5;
+		transition: opacity 120ms, transform 120ms;
+	}
+
+	.stage-btn.stage-active .stage-dot {
+		opacity: 1;
+		transform: scale(1.25);
 	}
 
 	.stage-name {
@@ -702,7 +710,7 @@
 
 	.stage-count {
 		font-size: 0.75rem;
-		color: var(--text-muted);
+		color: var(--text-secondary);
 		min-width: 1.5ch;
 		text-align: right;
 	}
@@ -713,7 +721,7 @@
 		display: flex;
 		align-items: center;
 		padding: 0 0.5rem 0 1rem;
-		min-height: 36px;
+		min-height: 44px;
 		gap: 0.25rem;
 	}
 
@@ -819,7 +827,7 @@
 		font-weight: 700;
 		font-family: inherit;
 		cursor: pointer;
-		transition: opacity 150ms;
+		transition: opacity 120ms;
 	}
 
 	.capture-btn:hover {

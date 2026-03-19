@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
-	import { getUserProfile, getDefaultLibrary, getUserSettings } from '$lib/db';
+	import { getUserProfile, getDefaultLibrary, getUserSettings, createThought, updateThought } from '$lib/db';
 	import { initializeShortcuts, onAction, destroyShortcuts } from '$lib/ShortcutManager';
 	import Sidebar from '../components/layout/Sidebar.svelte';
 	import MobileDock from '../components/layout/MobileDock.svelte';
@@ -60,7 +60,43 @@
 		ready = true;
 	});
 
+	// ── Web Drag-and-Drop (.md file import) ───────────────────────────────────
+
+	function handleDragOver(e: DragEvent) {
+		// Must preventDefault to allow drop
+		e.preventDefault();
+	}
+
+	async function handleDrop(e: DragEvent) {
+		e.preventDefault();
+		const libraryId = uiStore.activeLibraryId;
+		if (!libraryId || !e.dataTransfer) return;
+
+		const files = Array.from(e.dataTransfer.files).filter(
+			(f) => f.name.endsWith('.md')
+		);
+		if (files.length === 0) return;
+
+		// Import first .md file — create thought, then navigate to it
+		const file = files[0];
+		const title = file.name.replace(/\.md$/i, '');
+		const content = await file.text();
+
+		const id = await createThought(libraryId, title);
+		if (content.trim()) {
+			await updateThought(id, { content });
+		}
+		goto(`/thought/${id}`);
+	}
+
+	onMount(() => {
+		window.addEventListener('dragover', handleDragOver);
+		window.addEventListener('drop', handleDrop);
+	});
+
 	onDestroy(() => {
+		window.removeEventListener('dragover', handleDragOver);
+		window.removeEventListener('drop', handleDrop);
 		uiStore.searchWorker?.terminate();
 		uiStore.searchWorker = null;
 		destroyShortcuts();

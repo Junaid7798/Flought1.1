@@ -2,7 +2,9 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { ArrowLeft } from 'lucide-svelte';
+	import { ArrowLeft, Share2 } from 'lucide-svelte';
+	import { Capacitor } from '@capacitor/core';
+	import { Share } from '@capacitor/share';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
 	import { getThought, updateThought, type Thought } from '$lib/db';
 	import { ANIMATION_CONFIG } from '$lib/config';
@@ -56,15 +58,29 @@
 		}
 		await updateThought(thought.id, { title: titleValue });
 	}
+
+	async function handleShare() {
+		if (!thought) return;
+		await Share.share({
+			title: thought.title,
+			text: thought.content,
+			dialogTitle: thought.title,
+		});
+	}
 </script>
 
 {#if thought}
 	<div class="page">
-		<!-- Mobile back button -->
+		<!-- Mobile back button + share button -->
 		<div class="mobile-header">
 			<button class="back-btn" onclick={() => goto('/map')} aria-label={t('editor.backAriaLabel')}>
 				<ArrowLeft size={20} />
 			</button>
+			{#if Capacitor.isNativePlatform()}
+				<button class="share-btn" onclick={handleShare} aria-label={t('editor.share')}>
+					<Share2 size={20} />
+				</button>
+			{/if}
 		</div>
 
 		<!-- Editable title -->
@@ -113,6 +129,7 @@
 		padding: 0.5rem 1rem;
 		border-bottom: 1px solid var(--border);
 		flex-shrink: 0;
+		width: 100%;
 	}
 
 	.back-btn {
@@ -130,6 +147,25 @@
 	}
 
 	.back-btn:hover {
+		background: var(--bg-hover);
+	}
+
+	.share-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		background: transparent;
+		border: none;
+		color: var(--text-secondary);
+		cursor: pointer;
+		border-radius: 8px;
+		margin-left: auto;
+		transition: background 120ms;
+	}
+
+	.share-btn:hover {
 		background: var(--bg-hover);
 	}
 

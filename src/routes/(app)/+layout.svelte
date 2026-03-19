@@ -3,6 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { fly } from 'svelte/transition';
+	import { Capacitor } from '@capacitor/core';
+	import { NavigationBar } from '@capgo/capacitor-navigation-bar';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
 	import {
 		getThoughtsByLibrary,
@@ -59,6 +61,16 @@
 
 		// 5. Wire sync adapter if connected
 		await initSync();
+
+		// 6. Set Android navigation bar colour (native only)
+		if (Capacitor.getPlatform() === 'android') {
+			const colour = getComputedStyle(document.body)
+				.getPropertyValue('--bg-deep')
+				.trim();
+			if (colour) {
+				await NavigationBar.setNavigationBarColor({ color: colour, darkButtons: false });
+			}
+		}
 	});
 
 	// ── Sync wiring ──────────────────────────────────────────────────────────

@@ -12,11 +12,13 @@
 - [x] Phase 7 — AAA UI & The Adaptive Shell ✓ (complete 2026-03-19)
 - [x] Phase 8 — The Hybrid Editor & Shortcut Engine ✓ (complete 2026-03-19)
 - [x] Phase 9 — Graph Intelligence & Widgets ✓ (complete 2026-03-19)
+- [x] Phase 10 — Platform Native Optimization ✓ (complete 2026-03-19)
 - [ ] Phase 6.5 — Store Submissions
+- [x] UI/UX Polish pass — criticals + medium ✓ (complete 2026-03-19)
 
 ## Current
 
-Phase 10 — Device Testing & Polish. Next phase per build plan.
+Phase 11 — per build plan. UI/UX polish pass complete (criticals + medium).
 
 ---
 
@@ -121,3 +123,19 @@ to RGB with hexToRgb(), then setting background rgba(r,g,b, 0.18) and borderColo
 rgba(r,g,b, 0.35) inline in toDOM(). Same opacity values as the original color-mix
 percentages. Alternative: @supports guard — rejected because CM6 baseTheme is a JS
 object, not a CSS stylesheet, so @supports cannot be used there.
+
+[PHASE 9] Decision: color-mix() debt from Phase 7 resolved in 9.3.
+thermalPillWidget.ts now uses hexToRgb() to convert resolved CSS
+variable to rgba() inline — universal WebView support.
+No @supports guard needed.
+
+[PHASE 10] Decision: CM6 editor bundle at 607kB flagged by Vite.
+Deferred code-splitting to post-launch. Reason: Phase 10 scope
+is native APIs only. CM6 dynamic import() can be added as a
+standalone task after Phase 11 if load time is measurable
+on real devices.
+
+[PHASE 10] Decision: @capacitor/navigation-bar does not exist as 
+official plugin. Used @capgo/capacitor-navigation-bar instead. 
+Reason: most maintained community plugin, identical API shape, 
+actively used in production Capacitor apps.
