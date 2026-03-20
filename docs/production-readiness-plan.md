@@ -5,14 +5,7 @@
 # Assessed: 2026-03-19
 
 ---
-
-## IMMEDIATE TASK (before implementation begins)
-
-1. Copy this plan file to `e:\Flought V2\docs\production-readiness-plan.md`
-2. `git add docs/production-readiness-plan.md docs/session-handover.md`
-3. Commit with message: `docs(phase-11): production readiness plan + session handover`
-
----
+-
 
 ---
 
@@ -543,6 +536,33 @@ Multiply node opacity by `nodeOpacity` during `drawNode()` call.
 8. Mobile: formatting toolbar appears above keyboard
 9. Command palette: ⌘K opens, fuzzy search works, Escape closes
 10. Feature page: accessible from `?` button in topbar
+
+---
+
+## PHASE 9 — PRODUCTION RESILIENCE & PERFORMANCE
+
+### 9A — Error Boundaries & Toast Management
+- **File:** `src/routes/+error.svelte`
+- Provide a graceful global error fallback for unhandled exceptions or corrupted IndexedDB reads.
+- **File:** `src/components/layout/ToastManager.svelte`
+- Implement a non-blocking notification layer for transient errors (e.g. Google Drive sync drops, manual saves, link creation).
+
+### 9B — Performance at Scale (1k+ Nodes)
+- **Virtualized Lists:** Refactor the sidebar and any large lists to only render DOM nodes that are currently visible on screen to maintain 60FPS.
+- **Canvas Object Culling:** Update `GraphCanvas.svelte` to implement a bounding-box check, skipping the `drawNode()` loop for nodes panned entirely off-screen.
+- **Debounced Auto-Save:** Enhance `ThoughtEditor.svelte` so CodeMirror transactions write to `IndexedDB` with a 500ms debounce, preventing battery drain and DB lockups.
+
+### 9C — Zero-States ("Day One" Experience)
+- **Empty Map State:** Render a soft SVG illustration and a call-to-action button ("The Canvas is empty. Double tap to capture a thought.") if the library has 0 thoughts.
+- **Empty Command Palette:** Display "No matches. Hit Enter to create a new thought." when search returns no results in `CommandPalette.svelte`.
+
+### 9D — Accessibility (A11y) Traps
+- **Focus Trapping:** Ensure `<Tab>` locks focus inside any open modal, heavily for `CommandPalette.svelte`, preventing accidental bg interaction.
+- **Aria Labels:** Ensure all icon-only buttons (like the formatting toolbar in Phase 3A) have explicit `aria-label` or `aria-labelledby` descriptions for screen readers.
+
+### 9E — PWA / Offline Polish
+- **Service Worker / Caching:** Add `vite-plugin-pwa` to aggressively cache HTML/JS/CSS assets for instant rendering on airplane mode.
+- **Splash Screens & Manifest:** Configure Apple Touch Icons, Android `manifest.json`, and Capacitor splash screens to prevent white flashes during boot.
 
 ---
 

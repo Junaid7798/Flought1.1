@@ -1,144 +1,287 @@
 <script lang="ts">
-	import { $t as t } from '$lib/i18n';
-	import { createThought, updateThought } from '$lib/db';
+	import { onMount } from 'svelte';
+	import { 
+		createThought, getThought, updateThought,
+		type Thought 
+	} from '$lib/db';
 	import { showToast } from '$lib/stores/toastStore.svelte';
-	import { uiStore } from '$lib/stores/uiStore.svelte';
+	import { goto } from '$app/navigation';
+	import { 
+		CornerDownLeft, PlusCircle, FileText,
+		Sparkles 
+	} from 'lucide-svelte';
+	import { Capacitor } from '@capacitor/core';
+	import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
 	interface Props {
 		libraryId: string;
+		autoFocus?: boolean;
+		onCaptured?: () => void;
+		icon?: any; 
 	}
-	let { libraryId }: Props = $props();
+	let { libraryId, autoFocus = false, onCaptured, icon: Icon = Sparkles }: Props = $props();
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
-	let value = $state('');
-	let inputEl = $state<HTMLInputElement | null>(null);
-	let bouncing = $state(false);
+	let content = $state('');
+	let inputEl = $state<HTMLTextAreaElement | null>(null);
+	let isSubmitting = $state(false);
+	let isFocused = $state(false);
 
 	// ── Handlers ──────────────────────────────────────────────────────────────
 
-	async function submit() {
-		const text = value.trim();
-		if (!text) return;
-		const newId = await createThought(libraryId, text, false);
-		if (uiStore.sparkInputPrefillCoords !== null) {
-			await updateThought(newId, {
-				x_pos: uiStore.sparkInputPrefillCoords.x,
-				y_pos: uiStore.sparkInputPrefillCoords.y,
-			});
-			uiStore.sparkInputPrefillCoords = null;
-		}
-		value = '';
-		triggerBounce();
-		const stage = t('stage.1');
-		showToast(t('toast.captured').replace('{stage}', stage));
-	}
+	async function submit(mode: 'default' | 'editor' | 'another' = 'default') {
+		if (!content.trim() || isSubmitting) return;
+		isSubmitting = true;
 
-	function triggerBounce() {
-		bouncing = false;
-		// Force a reflow so the class toggle is picked up as a new animation
-		requestAnimationFrame(() => {
-			bouncing = true;
-			setTimeout(() => { bouncing = false; }, 180);
-		});
+		try {
+			const title = content.trim().split('\n')[0].slice(0, 100);
+			const thoughtId = await createThought(libraryId, title);
+			
+			// Update with full content and ensure it's in Inbox (1)
+			await updateThought(thoughtId, { 
+				content: content.trim(),
+				meta_state: 1 
+			});
+			
+			const thought = await getThought(thoughtId);
+			if (!thought) throw new Error("Failed to retrieve created thought");
+
+			if (Capacitor.isNativePlatform()) {
+				try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch {}
+			}
+
+			if (mode === 'editor') {
+				goto(`/thought/${thought.id}`);
+			} else if (mode === 'another') {
+				content = '';
+				inputEl?.focus();
+				showToast("Thought captured!");
+			} else {
+				content = '';
+				onCaptured?.();
+			}
+		} catch (err) {
+			console.error('Capture failed:', err);
+			showToast("Failed to capture thought");
+		} finally {
+			isSubmitting = false;
+		}
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter') {
+		if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
 			e.preventDefault();
 			submit();
-		} else if (e.key === 'Escape') {
-			value = '';
-			inputEl?.blur();
+		} 
+		else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+			e.preventDefault();
+			submit('editor');
+		}
+		else if (e.key === 'Enter' && e.shiftKey) {
+			e.preventDefault();
+			submit('another');
+		}
+		else if (e.key === 'Escape') {
+			content = '';
+			onCaptured?.();
 		}
 	}
+
+	onMount(() => {
+		if (autoFocus && inputEl) {
+			inputEl.focus();
+		}
+	});
 </script>
 
-<div class="spark-wrap">
-	<div class="spark-inner" class:bounce={bouncing}>
-		<span class="spark-icon" aria-hidden="true">+</span>
-		<input
-			class="spark-input"
-			type="text"
-			bind:value
+<div class="spark-container" class:focused={isFocused}>
+	<div class="spark-inner glass">
+		<div class="spark-icon-badge">
+			<Icon size={18} strokeWidth={2.5} />
+		</div>
+		
+		<textarea
 			bind:this={inputEl}
+			bind:value={content}
+			class="spark-textarea"
+			placeholder="Capture a thought..."
+			rows="1"
 			onkeydown={handleKeydown}
-			placeholder={t('capture.prompt')}
-			maxlength={300}
-			aria-label={t('capture.prompt')}
-		/>
+			onfocus={() => { isFocused = true; }}
+			onblur={() => { isFocused = false; }}
+		></textarea>
+
+		<div class="spark-actions" class:visible={content.length > 0}>
+			<button
+				class="spark-btn"
+				onclick={() => submit('editor')}
+				title="Save and Open Editor (⌘Enter)"
+				disabled={isSubmitting}
+			>
+				<FileText size={18} />
+				<span class="btn-hint">⌘↵</span>
+			</button>
+			<button
+				class="spark-btn"
+				onclick={() => submit('another')}
+				title="Save and Add Another (Shift+Enter)"
+				disabled={isSubmitting}
+			>
+				<PlusCircle size={18} />
+				<span class="btn-hint">⇧↵</span>
+			</button>
+			<button
+				class="spark-btn primary"
+				onclick={() => submit('default')}
+				title="Quick Capture (Enter)"
+				disabled={isSubmitting}
+			>
+				<CornerDownLeft size={18} />
+				<span class="btn-hint">↵</span>
+			</button>
+		</div>
 	</div>
 </div>
 
 <style>
-	.spark-wrap {
+	.spark-container {
 		width: 100%;
-		padding: 0.5rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
-		box-sizing: border-box;
+		transition: transform 0.3s var(--ease-out);
+	}
+
+	.spark-container.focused {
+		transform: translateY(-2px);
 	}
 
 	.spark-inner {
 		display: flex;
 		align-items: center;
-		gap: 0.625rem;
-		background: var(--bg-panel);
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		padding: 0 1rem;
+		gap: 0.75rem;
+		background: var(--bg-surface);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-pill);
+		backdrop-filter: var(--glass-blur);
+		-webkit-backdrop-filter: var(--glass-blur);
+		padding: 0 0.75rem 0 0.5rem;
 		min-height: 52px;
-		transition: border-color 150ms;
-		/* Static glow — not animated, so no rule violation */
-		box-shadow: 0 0 0 0 transparent;
+		box-shadow: var(--shadow-xl);
 	}
 
-	/* Focused state: show border and glow */
-	.spark-wrap:focus-within .spark-inner {
-		border-color: var(--color-brand);
-		box-shadow: 0 0 12px var(--brand-glow);
-	}
-
-	/* Bounce animation uses transform only — Rule 9 compliant */
-	.spark-inner.bounce {
-		animation: spark-bounce 180ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-	}
-
-	@keyframes spark-bounce {
-		0%   { transform: scale(1); }
-		40%  { transform: scale(0.97); }
-		100% { transform: scale(1); }
-	}
-
-	.spark-icon {
-		font-size: 1.125rem;
-		font-weight: 700;
-		color: var(--text-muted);
-		flex-shrink: 0;
-		line-height: 1;
-		user-select: none;
-		transition: color 150ms;
-	}
-
-	.spark-wrap:focus-within .spark-icon {
+	.spark-icon-badge {
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		background: var(--brand-tint);
 		color: var(--color-brand);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		box-shadow: 0 0 15px var(--brand-glow);
 	}
 
-	.spark-input {
+	.spark-textarea {
 		flex: 1;
-		background: none;
+		background: transparent;
 		border: none;
 		outline: none;
 		color: var(--text-primary);
-		font-size: 0.9375rem;
 		font-family: inherit;
-		min-height: 44px;
-		padding: 0;
+		font-size: 1rem;
+		padding: 0.875rem 0;
+		resize: none;
+		height: 24px;
+		line-height: 24px;
+		max-height: 200px;
 	}
 
-	.spark-input::placeholder {
+	.spark-textarea::placeholder {
 		color: var(--text-muted);
+		opacity: 0.5;
 	}
 
-	/* Mobile layout is handled by MobileDock (bottom sheet context) */
+	.spark-actions {
+		display: flex;
+		gap: 0.5rem;
+		opacity: 0;
+		transform: translateX(10px);
+		pointer-events: none;
+		transition: all 0.25s var(--ease-out);
+	}
+
+	.spark-actions.visible {
+		opacity: 1;
+		transform: translateX(0);
+		pointer-events: auto;
+	}
+
+	.spark-btn {
+		width: 42px;
+		height: 42px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--bg-elevated);
+		border: none;
+		border-radius: 50%;
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition: all 0.25s var(--ease-out);
+		position: relative;
+		overflow: hidden;
+	}
+
+	.spark-btn:hover:not(:disabled) {
+		background: var(--bg-hover);
+		color: var(--text-primary);
+		transform: scale(1.05);
+	}
+
+	.spark-btn :global(svg) {
+		transition: all 0.2s var(--ease-out);
+	}
+
+	.spark-btn:hover :global(svg) {
+		opacity: 0;
+		transform: scale(0.6) translateY(-10px);
+	}
+
+	.btn-hint {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -20%);
+		font-size: 0.65rem;
+		font-weight: 800;
+		opacity: 0;
+		transition: all 0.25s var(--ease-out);
+		pointer-events: none;
+		white-space: nowrap;
+	}
+
+	.spark-btn:hover .btn-hint {
+		opacity: 1;
+		transform: translate(-50%, -50%);
+	}
+
+	.spark-btn.primary {
+		color: var(--color-brand);
+		background: var(--brand-tint);
+	}
+
+	.spark-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	@media (max-width: 600px) {
+		.spark-btn {
+			width: 44px;
+			height: 44px;
+		}
+		.btn-hint { display: none; }
+	}
 </style>

@@ -11,6 +11,10 @@
 		pos: number;   // character offset in doc — used for scrollIntoView
 	}
 
+	// ── Props ─────────────────────────────────────────────────────────────────
+
+	let { scrollElement } = $props<{ scrollElement?: HTMLElement }>();
+
 	// ── Context ───────────────────────────────────────────────────────────────
 
 	const getView = getContext<EditorViewGetter>(EDITOR_VIEW_KEY);

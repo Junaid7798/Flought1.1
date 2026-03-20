@@ -10,15 +10,75 @@
 	import Sidebar from '../components/layout/Sidebar.svelte';
 	import Topbar from '../components/layout/Topbar.svelte';
 	import MobileDock from '../components/layout/MobileDock.svelte';
-	import SparkInput from '../components/capture/SparkInput.svelte';
+	import CaptureModal from '../components/capture/CaptureModal.svelte';
+	import FloatingCapture from '../components/capture/FloatingCapture.svelte';
 	import CommandPalette from '../components/search/CommandPalette.svelte';
+	import SettingsModal from '../components/settings/SettingsModal.svelte';
+	import SparkInput from '../components/capture/SparkInput.svelte';
 	import ToastManager from '../components/layout/ToastManager.svelte';
 
+	import { gsap } from 'gsap';
+
 	let { children } = $props();
-
+ 
 	// ── Bootstrap ─────────────────────────────────────────────────────────────
-
 	let ready = $state(false);
+	let mainElement = $state<HTMLElement | null>(null);
+
+	let unsubPalette: () => void;
+	let unsubSettings: () => void;
+	let unsubSidebar: () => void;
+	let unsubQuickCapture: () => void;
+
+	// GSAP Sidebar Collapse Animation
+	let animatedSidebarWidth = $state(uiStore.sidebarWidth);
+	$effect(() => {
+		const targetWidth = uiStore.sidebarCollapsed ? 44 : uiStore.sidebarWidth;
+		gsap.to({ value: animatedSidebarWidth }, {
+			value: targetWidth,
+			duration: 0.45,
+			ease: 'power3.inOut',
+			onUpdate() {
+				animatedSidebarWidth = (this as any).targets()[0].value;
+			}
+		});
+	});
+
+	// ── Modern Brand Color System ──────────────────────────────────────────
+	function hexToRgba(hex: string, alpha: number) {
+		if (!hex || hex.length < 7) return 'rgba(139, 92, 246, 0.1)';
+		const r = parseInt(hex.slice(1, 3), 16);
+		const g = parseInt(hex.slice(3, 5), 16);
+		const b = parseInt(hex.slice(5, 7), 16);
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	}
+
+	const brandStyles = $derived(`
+		--color-brand: ${uiStore.brandColor};
+		--brand-tint: ${hexToRgba(uiStore.brandColor, 0.1)};
+		--brand-glow: ${hexToRgba(uiStore.brandColor, 0.2)};
+		--brand-rim: ${hexToRgba(uiStore.brandColor, 0.3)};
+		--sidebar-width: ${animatedSidebarWidth}px;
+	`);
+
+	// Layout width sync
+	$effect(() => {
+		document.documentElement.classList.remove('theme-layout-normal', 'theme-layout-wide', 'theme-layout-full');
+		if (uiStore.layoutWidth) {
+			document.documentElement.classList.add(`theme-layout-${uiStore.layoutWidth}`);
+		}
+	});
+
+	// GSAP Page Transition
+	$effect(() => {
+		const path = $page.url.pathname;
+		if (ready && mainElement) {
+			gsap.fromTo(mainElement, 
+				{ opacity: 0, scale: 0.98, filter: 'blur(8px)' }, 
+				{ opacity: 1, scale: 1, filter: 'blur(0px)', duration: 0.5, ease: 'power2.out', clearProps: 'all' }
+			);
+		}
+	});
 
 	onMount(async () => {
 		// ⚠️ DEV BYPASS — REMOVE BEFORE DEPLOY
@@ -41,13 +101,17 @@
 		// Keeps uiStore, the CSS class, and localStorage in sync.
 		// localStorage is read by the inline script in app.html to prevent flash.
 		const savedSettings = await getUserSettings();
-		if (savedSettings?.theme === 'light') {
-			uiStore.theme = 'light';
-			document.documentElement.classList.add('theme-light');
-			try { localStorage.setItem('flought_theme', 'light'); } catch (_) {}
-		} else {
-			document.documentElement.classList.remove('theme-light');
-			try { localStorage.removeItem('flought_theme'); } catch (_) {}
+		if (savedSettings) {
+			if (savedSettings.theme === 'modern-light') {
+				uiStore.theme = 'modern-light';
+				document.documentElement.classList.add('theme-modern-light');
+			}
+			if (savedSettings.layout_width) {
+				uiStore.layoutWidth = savedSettings.layout_width;
+			}
+			if (savedSettings.brand_color) {
+				uiStore.brandColor = savedSettings.brand_color;
+			}
 		}
 
 		// Skip guard on auth and onboarding routes
@@ -81,9 +145,22 @@
 		initializeShortcuts(settings?.keyboard_shortcuts ?? {});
 
 		// Wire actions
-		onAction('commandPalette', () => {
-			uiStore.commandPaletteOpen = !uiStore.commandPaletteOpen;
+		unsubPalette = onAction('commandPalette', () => {
+			uiStore.commandPaletteOpen = true;
 		});
+
+		unsubSettings = onAction('openSettings', () => {
+			uiStore.isSettingsOpen = true;
+		});
+
+		unsubSidebar = onAction('toggleSidebar', () => {
+			uiStore.sidebarCollapsed = !uiStore.sidebarCollapsed;
+		});
+
+		unsubQuickCapture = onAction('quickCapture', () => {
+			uiStore.isSparkInputOpen = !uiStore.isSparkInputOpen;
+		});
+
 		onAction('goMap',    () => { uiStore.activeView = 'map'; });
 		onAction('goEditor', () => { uiStore.activeView = 'editor'; });
 		onAction('goFocus',  () => { uiStore.activeView = 'focus'; });
@@ -128,6 +205,10 @@
 	onDestroy(() => {
 		window.removeEventListener('dragover', handleDragOver);
 		window.removeEventListener('drop', handleDrop);
+		unsubPalette();
+		unsubSettings();
+		unsubSidebar();
+		unsubQuickCapture();
 		uiStore.searchWorker?.terminate();
 		uiStore.searchWorker = null;
 		destroyShortcuts();
@@ -144,7 +225,7 @@
 {#if isOnboarding}
 	{@render children()}
 {:else if ready}
-	<div class="shell" style="--sidebar-width: {uiStore.sidebarWidth}px">
+	<div class="shell glass" style="--sidebar-width: {uiStore.sidebarCollapsed ? '38px' : uiStore.sidebarWidth + 'px'}; --right-sidebar-width: {uiStore.activeView === 'editor' && !uiStore.rightSidebarCollapsed ? uiStore.rightSidebarWidth + 'px' : uiStore.activeView === 'editor' && uiStore.rightSidebarCollapsed ? '38px' : '0px'}; {brandStyles}">
 		<!-- Desktop sidebar -->
 		<Sidebar activeLibraryId={uiStore.activeLibraryId} />
 
@@ -153,14 +234,9 @@
 			<!-- Desktop topbar: view tabs + search + settings -->
 			<Topbar />
 
-			<main class="main">
+			<main class="main" bind:this={mainElement}>
 				{@render children()}
 			</main>
-
-			<!-- Desktop capture bar -->
-			<div class="desktop-spark">
-				<SparkInput libraryId={uiStore.activeLibraryId} />
-			</div>
 		</div>
 	</div>
 
@@ -170,24 +246,36 @@
 	<!-- Command palette (portal-like, fixed overlay) -->
 	<CommandPalette libraryId={uiStore.activeLibraryId} />
 
+	<!-- Settings Modal -->
+	<SettingsModal />
+
 	<!-- Ghost toast stack -->
 	<ToastManager />
+
+	<!-- Universal Capture (FAB + Modal) -->
+	<FloatingCapture />
+	<CaptureModal />
+
+	{#if uiStore.isSparkInputOpen}
+		<SparkInput libraryId={uiStore.activeLibraryId} />
+	{/if}
 {/if}
 
 <style>
 	.shell {
 		display: grid;
-		grid-template-columns: var(--sidebar-width) 1fr;
-		height: 100dvh;
+		grid-template-columns: var(--sidebar-width, 220px) 1fr var(--right-sidebar-width, 0px);
+		height: 100%;
+		width: 100%;
 		overflow: hidden;
+		background: var(--bg-deep); /* Fallback */
 	}
 
 	.main-col {
 		display: flex;
 		flex-direction: column;
-		height: 100dvh;
+		height: 100%;
 		overflow: hidden;
-		background-color: var(--bg-deep);
 	}
 
 	.main {
@@ -195,20 +283,10 @@
 		overflow: hidden;
 	}
 
-	.desktop-spark {
-		flex-shrink: 0;
-		border-top: 1px solid var(--border);
-		background: var(--bg-deep);
-	}
-
-	/* On mobile the dock owns the bottom — hide the desktop spark bar */
+	/* On mobile the dock owns the bottom */
 	@media (max-width: 767px) {
 		.shell {
 			grid-template-columns: 1fr;
-		}
-
-		.desktop-spark {
-			display: none;
 		}
 
 		/* Leave room for the fixed MobileDock */

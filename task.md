@@ -1,0 +1,33 @@
+# Master UX & Interaction Tasks
+
+- [x] **Phase 1: Graph Interaction Polish**
+- [x] **Phase 2: Stage Filter UI**
+- [x] **Phase 3: Universal Capture (FAB)**
+- [x] **Phase 4: Stage Hulls**
+- [x] **Phase 5: Visual Refinement (Graph)**
+- [x] **Phase 6: Layout Cleanup**
+- [x] **Phase 7: Capture Workflow Enhancement**
+- [x] **Phase 8: Bug Fixes (Layout & Visibility)**
+- [x] **Phase 9: Mobile UI Optimization**
+- [x] **Phase 10: Draggable Editor Toolbar & Colors**
+- [x] **Phase 11: Mobile Navigation & Functionality**
+- [x] **Phase 12: Final Mobile Polish & Micro-Refinements**
+- [x] **Phase 13: SparkInput Power-User Refinements**
+- [x] **Phase 14: Page-like Editor Transition**
+- [x] **Phase 15: Shortcut Library & Customization**
+- [x] **Phase 16: Plugin Store Integration**
+- [x] **Phase 17: Templates Sidebar Integration**
+- [x] **Phase 18: Sidebar Plugin Visibility Integration**
+- [x] **Phase 19: Adjustable Sidebars**
+- [x] **Phase 20: Notion-Style Premium Editor UI**
+- [x] **Phase 22: Light Theme Muting (Silver/Zinc)**
+- [x] **Phase 23: Settings UI Cleanup**
+- [x] **Phase 24: Sidebar Plugin Simplification**
+- [x] **Phase 25: Obsidian-Style Settings Redesign**
+- [x] **Phase 26: Editor Bug Fixes & UX Polish**
+- [x] **Phase 27: Sidebar Redesign**
+- [x] **Phase 28: Sidebar & Settings UX Fixes**
+- [ ] **Phase 29: Navigation Clarity**
+  - [ ] Add explicit sidebar toggle buttons to `TopBar` (Left/Right)
+  - [ ] Add prominent "Back" button to `Settings` content header
+  - [ ] Ensure toggles only show when relevant (e.g. Right toggle only in Editor)

@@ -212,6 +212,6 @@ describe('initUserProfile', () => {
 		await initUserProfile('Alice', 'freelance');
 		const settings = await db.userSettings.get('settings');
 		expect(settings).toBeDefined();
-		expect(settings?.theme).toBe('midnight');
+		expect(settings?.theme).toBe('modern-dark');
 	});
 });

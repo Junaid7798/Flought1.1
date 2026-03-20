@@ -1,75 +1,70 @@
-import { ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { type Extension, RangeSetBuilder } from '@codemirror/state';
+import { ViewPlugin, Decoration, type DecorationSet, type ViewUpdate, EditorView } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 
-// Node types whose syntax markers should be hidden when cursor is outside
-const HIDE_NODES = new Set([
-	'StrongEmphasis', 'Emphasis', 'ATXHeading1', 'ATXHeading2', 'ATXHeading3',
-	'CodeMark', 'LinkMark', 'EmphasisMark',
-]);
+// The CSS class that hides the characters
+const hidden = Decoration.mark({ class: 'cm-syntax-hidden' });
 
-// Heading node → CSS class map for visual hierarchy
-const HEADING_CLASSES: Record<string, string> = {
-	ATXHeading1: 'cm-h1',
-	ATXHeading2: 'cm-h2',
-	ATXHeading3: 'cm-h3',
-};
+/**
+ * CodeMirror 6 plugin that hides markdown syntax markers (**, *, #, [], etc.)
+ * unless the cursor is currently inside that specific node.
+ */
+export const syntaxHiding = ViewPlugin.fromClass(class {
+  decorations: DecorationSet;
 
-const hiddenMark = Decoration.mark({ class: 'cm-syntax-hidden' });
+  constructor(view: EditorView) {
+    this.decorations = this.build(view);
+  }
 
-export function createSyntaxHiding(): Extension {
-	return ViewPlugin.fromClass(
-		class {
-			decorations: DecorationSet;
+  update(update: ViewUpdate) {
+    if (update.docChanged || update.selectionSet || update.viewportChanged) {
+      this.decorations = this.build(update.view);
+    }
+  }
 
-			constructor(view: import('@codemirror/view').EditorView) {
-				this.decorations = this.build(view);
-			}
+  build(view: EditorView) {
+    const cursor = view.state.selection.main.head;
+    const builder: any[] = [];
 
-			update(update: ViewUpdate) {
-				if (update.docChanged || update.selectionSet || update.viewportChanged) {
-					this.decorations = this.build(update.view);
-				}
-			}
+    // Use visibleRanges for high performance on large documents
+    for (const { from, to } of view.visibleRanges) {
+      syntaxTree(view.state).iterate({
+        enter: (node) => {
+          // Node types used by lezer-markdown for formatting marks
+          const isFormattingMark = [
+            'EmphasisMark', 
+            'StrongEmphasisMark', 
+            'CodeMark', 
+            'ATXHeadingMark', 
+            'LinkMark', 
+            'ImageMark',
+            'ListMark',
+            'TaskMarker',
+            'QuoteMark'
+          ].includes(node.name);
 
-			build(view: import('@codemirror/view').EditorView): DecorationSet {
-				const builder = new RangeSetBuilder<Decoration>();
-				const cursor = view.state.selection.main.head;
-				const tree = syntaxTree(view.state);
+          if (!isFormattingMark) return;
 
-				tree.iterate({
-					enter(node) {
-						// Apply heading line decoration for visual hierarchy
-						if (node.name in HEADING_CLASSES) {
-							// heading class applied via mark on whole line
-							return;
-						}
+          // Only hide if the cursor is NOT inside this specific mark's range
+          // Expand the check slightly to allow touching the marker
+          const cursorTouching = cursor >= node.from && cursor <= node.to;
+          if (!cursorTouching) {
+            builder.push(hidden.range(node.from, node.to));
+          }
+        },
+        from,
+        to
+      });
+    }
 
-						// Hide syntax marks when cursor is outside node
-						if (HIDE_NODES.has(node.name)) {
-							// Check if cursor overlaps with this node
-							const cursorInside = cursor >= node.from && cursor <= node.to;
-							if (!cursorInside) {
-								// Find child mark nodes (EmphasisMark, CodeMark, etc.)
-								node.node.cursor().iterate((child) => {
-									if (
-										child.name === 'EmphasisMark' ||
-										child.name === 'CodeMark'    ||
-										child.name === 'LinkMark'
-									) {
-										if (child.from < child.to) {
-											builder.add(child.from, child.to, hiddenMark);
-										}
-									}
-								});
-							}
-						}
-					},
-				});
+    return Decoration.set(builder, true);
+  }
+}, {
+  decorations: v => v.decorations
+});
 
-				return builder.finish();
-			}
-		},
-		{ decorations: (v) => v.decorations }
-	);
+/**
+ * For backwards compatibility with existing imports in ThoughtEditor.svelte
+ */
+export function createSyntaxHiding() {
+  return syntaxHiding;
 }

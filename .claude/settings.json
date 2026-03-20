@@ -17,11 +17,30 @@
       "Bash(grep -rn \":\\\\s*#[0-9A-Fa-f]\\\\{3,6\\\\}\\\\b\\\\|color\\\\s*=\\\\s*[''''\"\"]#[0-9A-Fa-f]\\\\{3,6\\\\}\\\\|background\\\\s*=\\\\s*[''''\"\"]#[0-9A-Fa-f]\\\\{3,6\\\\}\" src/ --include=\"*.svelte\" --include=\"*.ts\")",
       "Bash(find 'e:\\\\Flought V2' -name *build-plan* -o -name *phase*9*)",
       "Bash(node -e \"try { require.resolve\\(''d3-polygon''\\); console.log\\(''found''\\); } catch { console.log\\(''not found''\\); }\")",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(npx cap:*)",
+      "Bash(npm search:*)",
+      "Bash(find 'e:/Flought V2/node_modules/@capgo/capacitor-navigation-bar' -name *.d.ts)",
+      "Bash(mkdir -p snapshots)",
+      "Bash(snapshots/phase-10-1-tests.log:*)",
+      "Bash(\"e:/Flought V2/snapshots/phase-10-2-checklist.md\":*)",
+      "Bash(python3 -c \":*)",
+      "Bash(node -e \":*)",
+      "Bash(python3 \"C:/Users/Junaid/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"knowledge graph PKM dark mode premium SaaS desktop app\" --design-system -p \"Flought\" -f markdown)",
+      "Bash(py --version)",
+      "Bash(where python:*)",
+      "Bash(py \"C:/Users/Junaid/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"knowledge graph PKM dark mode premium SaaS desktop app\" --design-system -p \"Flought\" -f markdown)",
+      "Bash(py \"C:/Users/Junaid/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"svelte sveltekit performance runes\" --stack svelte)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174/)",
+      "Bash(mkdir -p \"e:/Flought V2/src/components/editor/extensions\")",
+      "Bash(npm --prefix \"e:/Flought V2\" list @codemirror/autocomplete)",
+      "Bash(node -e \"const fs=require\\(''fs''\\); const content=fs.readFileSync\\(''featurev1.md'',''utf8''\\); const start=content.indexOf\\(''## GROUP C''\\); const end=content.indexOf\\(''## GROUP D''\\); console.log\\(content.slice\\(start, end\\)\\);\")",
+      "Bash(node -e \"const fs=require\\(''fs''\\); const content=fs.readFileSync\\(''featurev1.md'',''utf8''\\); const start=content.indexOf\\(''## GROUP E''\\); const end=content.indexOf\\(''## GROUP F''\\); console.log\\(content.slice\\(start, end\\)\\);\")"
     ],
     "additionalDirectories": [
       "e:\\Flought V2\\src\\routes\\thought",
-      "e:\\Flought V2\\src\\routes\\(app)\\thought"
+      "e:\\Flought V2\\src\\routes\\(app)\\thought",
+      "C:\\Users\\Junaid\\.claude\\plans"
     ]
   }
 }

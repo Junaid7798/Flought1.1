@@ -18,6 +18,7 @@
 	import { syncService } from '$lib/sync/SyncService';
 	import { GoogleDriveAdapter } from '$lib/sync/GoogleDriveAdapter';
 	import { eventBus } from '$lib/eventBus';
+	import { setDevBypass } from '$lib/supabase';
 
 	let { children } = $props();
 
@@ -53,13 +54,19 @@
 		// app.html inline script handles flash prevention via localStorage;
 		// this ensures the DB value wins on cold load (e.g. after localStorage clear).
 		const savedSettings = await getUserSettings();
-		if (savedSettings?.theme === 'light') {
-			uiStore.theme = 'light';
-			document.documentElement.classList.add('theme-light');
-			try { localStorage.setItem('flought_theme', 'light'); } catch(e) {}
+		if (savedSettings?.theme === 'modern-light') {
+			uiStore.theme = 'modern-light';
+			document.documentElement.classList.add('theme-modern-light');
+			try { localStorage.setItem('flought_theme', 'modern-light'); } catch(e) {}
 		} else {
-			document.documentElement.classList.remove('theme-light');
-			try { localStorage.removeItem('flought_theme'); } catch(e) {}
+			uiStore.theme = 'modern-dark';
+			document.documentElement.classList.remove('theme-modern-light');
+			try { localStorage.setItem('flought_theme', 'modern-dark'); } catch(e) {}
+		}
+
+		if (savedSettings?.layout_width) {
+			uiStore.layoutWidth = savedSettings.layout_width;
+			document.documentElement.classList.add(`theme-layout-${uiStore.layoutWidth}`);
 		}
 
 		// 4. Listen for auth state changes (token refresh, sign-out)
@@ -83,6 +90,12 @@
 			if (colour) {
 				await NavigationBar.setNavigationBarColor({ color: colour, darkButtons: false });
 			}
+		}
+
+		// 7. Expose dev bypass toggle for testing
+		if (import.meta.env.DEV) {
+			(window as any).enableDevBypass = () => setDevBypass(true);
+			(window as any).disableDevBypass = () => setDevBypass(false);
 		}
 	});
 

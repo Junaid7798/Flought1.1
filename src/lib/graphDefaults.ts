@@ -30,6 +30,7 @@ export const GRAPH_DISPLAY_DEFAULTS = {
   edgeOpacity:        0.15,     // rgba white channel for edges
   showLabels:         true,
   showHulls:          true,
+  showOrphans:        true,
   neighbourhoodDepth: 2,        // focus radius: 1 | 2 | 3
   dimStrength:        0.12,     // unfocused node opacity
 } as const;

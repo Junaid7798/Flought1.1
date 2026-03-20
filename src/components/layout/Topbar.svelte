@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { Map, FileText, Zap, Search, Settings } from 'lucide-svelte';
+	import { Map, FileText, Zap, Search, Settings, HelpCircle, BookOpen, PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose } from 'lucide-svelte';
 	import { $t as t } from '$lib/i18n';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
 
@@ -11,20 +11,36 @@
 
 	const tabs = [
 		{ id: 'map',    label: 'Map',    icon: Map,      href: '/map'    },
+		{ id: 'triage', label: 'Triage', icon: BookOpen, href: '/triage' },
 		{ id: 'editor', label: 'Editor', icon: FileText,  href: '/editor' },
 		{ id: 'focus',  label: 'Focus',  icon: Zap,       href: '/focus'  },
 	] as const;
 
-	// Determine which tab is active from the URL
 	const activeTab = $derived(
 		currentPath.startsWith('/thought') || currentPath === '/editor' ? 'editor' :
-		currentPath.startsWith('/focus')   ? 'focus'  : 'map'
+		currentPath.startsWith('/focus')   ? 'focus'  : 
+		currentPath.startsWith('/triage')  ? 'triage' : 'map'
 	);
 </script>
 
 <header class="topbar">
-	<!-- View switcher tabs -->
-	<div class="tabs" role="tablist" aria-label={t('nav.views')}>
+	<div class="left-section">
+		<button
+			class="icon-btn sidebar-toggle"
+			onclick={() => { uiStore.sidebarCollapsed = !uiStore.sidebarCollapsed; }}
+			aria-label={uiStore.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+			type="button"
+		>
+			{#if uiStore.sidebarCollapsed}
+				<PanelLeftOpen size={16} strokeWidth={1.7} />
+			{:else}
+				<PanelLeftClose size={16} strokeWidth={1.7} />
+			{/if}
+		</button>
+		
+		<div class="tabs-divider"></div>
+
+		<div class="tabs" role="tablist" aria-label={t('nav.views')}>
 		{#each tabs as tab}
 			<button
 				class="tab"
@@ -41,30 +57,57 @@
 				{/if}
 			</button>
 		{/each}
+		</div>
 	</div>
 
-	<!-- Right actions -->
 	<div class="actions">
 		<button
-			class="action-btn"
+			class="search-btn"
 			onclick={() => { uiStore.commandPaletteOpen = true; }}
 			aria-label={t('search.ariaLabel')}
 			type="button"
 		>
-			<Search size={16} strokeWidth={1.7} />
-			<span class="action-label">{t('search.placeholder')}</span>
-			<kbd class="shortcut">⌘K</kbd>
+			<Search size={14} strokeWidth={1.8} />
+			<span class="search-label">{t('search.placeholder')}</span>
+			<kbd>Cmd+K</kbd>
 		</button>
 
 		<button
 			class="icon-btn"
-			onclick={() => goto('/settings')}
+			onclick={() => goto('/features')}
+			aria-label="Feature guide"
+			title="Feature guide"
+			type="button"
+			class:icon-btn--active={currentPath.startsWith('/features')}
+		>
+			<HelpCircle size={16} strokeWidth={1.7} />
+		</button>
+
+		<button
+			class="icon-btn"
+			onclick={() => { uiStore.isSettingsOpen = true; }}
 			aria-label={t('nav.settings')}
 			type="button"
-			class:icon-btn--active={currentPath.startsWith('/settings')}
+			class:icon-btn--active={uiStore.isSettingsOpen}
 		>
 			<Settings size={16} strokeWidth={1.7} />
 		</button>
+
+		{#if activeTab === 'editor'}
+			<div class="tabs-divider"></div>
+			<button
+				class="icon-btn sidebar-toggle right"
+				onclick={() => { uiStore.rightSidebarCollapsed = !uiStore.rightSidebarCollapsed; }}
+				aria-label={uiStore.rightSidebarCollapsed ? "Expand right sidebar" : "Collapse right sidebar"}
+				type="button"
+			>
+				{#if uiStore.rightSidebarCollapsed}
+					<PanelRightOpen size={16} strokeWidth={1.7} />
+				{:else}
+					<PanelRightClose size={16} strokeWidth={1.7} />
+				{/if}
+			</button>
+		{/if}
 	</div>
 </header>
 
@@ -73,22 +116,40 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		height: 48px;
-		padding: 0 1rem 0 0.75rem;
+		height: var(--topbar-height);
+		padding: 0 var(--spacing-md) 0 var(--spacing-sm);
 		background: var(--glass-panel);
 		backdrop-filter: var(--glass-blur);
 		-webkit-backdrop-filter: var(--glass-blur);
-		border-bottom: 1px solid var(--border-strong);
+		border-bottom: 1px solid var(--border-separator);
 		flex-shrink: 0;
-		gap: 0.5rem;
+		gap: var(--spacing-xs);
 	}
 
-	/* ── Tabs ──────────────────────────────────────────────────────────────── */
+	.left-section {
+		display: flex;
+		align-items: center;
+		height: 100%;
+		gap: var(--spacing-xs);
+	}
+
+	.tabs-divider {
+		width: 1px;
+		height: 16px;
+		background: var(--border-subtle);
+		margin: 0 var(--spacing-xs);
+	}
+	
+	.sidebar-toggle.right {
+		margin-left: -2px;
+	}
+
+	/* ── Tabs ────────────────────────────────────────────────────────────── */
 
 	.tabs {
 		display: flex;
 		align-items: center;
-		gap: 0.125rem;
+		gap: 2px;
 		height: 100%;
 	}
 
@@ -96,17 +157,17 @@
 		position: relative;
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
+		gap: 6px;
 		height: 100%;
-		padding: 0 0.875rem;
+		padding: 0 var(--spacing-sm);
 		background: none;
 		border: none;
 		cursor: pointer;
 		color: var(--text-muted);
-		font-size: 0.8125rem;
+		font-size: 0.9375rem;
 		font-family: inherit;
 		font-weight: 500;
-		transition: color 120ms;
+		transition: color var(--transition-fast);
 		white-space: nowrap;
 	}
 
@@ -121,81 +182,78 @@
 	.tab-indicator {
 		position: absolute;
 		bottom: 0;
-		left: 0.875rem;
-		right: 0.875rem;
+		left: var(--spacing-sm);
+		right: var(--spacing-sm);
 		height: 2px;
 		background: var(--color-brand);
-		border-radius: 2px 2px 0 0;
+		border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+		animation: indicatorIn var(--transition-fast) ease forwards;
+	}
+
+	@keyframes indicatorIn {
+		from { transform: scaleX(0); opacity: 0; }
+		to   { transform: scaleX(1); opacity: 1; }
 	}
 
 	.tab-label {
 		font-size: 0.8125rem;
 	}
 
-	/* ── Actions ───────────────────────────────────────────────────────────── */
+	/* ── Actions ─────────────────────────────────────────────────────────── */
 
 	.actions {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--spacing-xs);
 	}
 
-	.action-btn {
+	.search-btn {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--spacing-xs);
 		height: 32px;
-		padding: 0 0.75rem;
+		padding: 0 var(--spacing-sm);
 		background: var(--glass-surface);
 		backdrop-filter: var(--glass-blur-sm);
 		-webkit-backdrop-filter: var(--glass-blur-sm);
-		border: 1px solid var(--border-strong);
-		border-radius: 8px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-pill);
 		cursor: pointer;
 		color: var(--text-muted);
-		font-size: 0.8125rem;
+		font-size: 0.75rem;
 		font-family: inherit;
-		transition: border-color 120ms, color 120ms;
+		transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
 		white-space: nowrap;
 	}
 
-	.action-btn:hover {
+	.search-btn:hover {
 		border-color: var(--color-brand);
 		color: var(--text-secondary);
-	}
-
-	.action-label {
-		font-size: 0.75rem;
-	}
-
-	.shortcut {
-		font-size: 0.6875rem;
-		color: var(--text-muted);
 		background: var(--bg-hover);
-		border: 1px solid var(--border-strong);
-		border-radius: 4px;
-		padding: 0.0625rem 0.3125rem;
-		font-family: inherit;
-		margin-left: 0.25rem;
+	}
+
+	.search-label {
+		font-size: 0.75rem;
 	}
 
 	.icon-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 32px;
-		height: 32px;
+		width: var(--size-control);
+		height: var(--size-control);
 		background: none;
 		border: none;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		cursor: pointer;
 		color: var(--text-muted);
-		transition: background 120ms, color 120ms;
+		transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 	}
 
 	.icon-btn:hover {
 		background: var(--bg-hover);
 		color: var(--text-secondary);
+		transform: scale(1.05);
 	}
 
 	.icon-btn--active {
@@ -203,7 +261,8 @@
 		background: var(--brand-tint);
 	}
 
-	/* ── Mobile: hide on small screens (MobileDock handles nav) ───────────── */
+	/* ── Mobile ──────────────────────────────────────────────────────────── */
+
 	@media (max-width: 767px) {
 		.topbar {
 			display: none;

@@ -3,6 +3,8 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'nav.editor': 'Editor',
   'nav.focus': 'Focus',
   'nav.settings': 'Settings',
+  'nav.search': 'Search',
+  'nav.triage': 'Triage',
   'nav.views': 'Views',
   'capture.prompt': 'Capture a thought...',
   'thought.singular': 'Thought',
@@ -85,8 +87,8 @@ export const DEFAULT_STRINGS: Record<string, string> = {
 
   // ── Settings — Appearance ────────────────────────────────────────────
   'settings.theme':                 'Theme',
-  'settings.themeMidnight':         'Midnight',
-  'settings.themeLight':            'Light',
+  'settings.themeMidnight':         'Modern Dark',
+  'settings.themeLight':            'Modern Light',
 
   // ── Settings — Pipeline stage labels ────────────────────────────────
   'settings.stageLabels':           'Stage names',
@@ -109,6 +111,12 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'shortcuts.goEditor.desc':        'Switch to editor view',
   'shortcuts.goFocus':              'Go to Focus',
   'shortcuts.goFocus.desc':         'Switch to focus view',
+  'shortcuts.openSettings':         'Settings',
+  'shortcuts.openSettings.desc':    'Open preferences and configuration',
+  'shortcuts.toggleSidebar':        'Toggle Sidebar',
+  'shortcuts.toggleSidebar.desc':   'Show or hide the left sidebar',
+  'shortcuts.quickCapture':         'Quick Capture',
+  'shortcuts.quickCapture.desc':    'Instantly save a thought from anywhere', 
 
   // Shortcut recorder controls
   'shortcuts.record':               'Record',
@@ -127,6 +135,7 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'graph.edgeOpacity':              'Edge Opacity',
   'graph.showLabels':               'Show Labels',
   'graph.showHulls':                'Show Stage Hulls',
+  'graph.showOrphans':              'Show Orphans',
   'graph.repulsion':                'Repulsion',
   'graph.linkDistance':             'Link Distance',
   'graph.settleSpeed':              'Settle Speed',
@@ -155,8 +164,8 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'feature.createHere.label':         'Create thought here',
   'feature.fold.open':                'Expand section',
   'feature.fold.close':               'Collapse section',
-  'feature.theme.midnight':           'Midnight',
-  'feature.theme.light':              'Light',
+  'feature.theme.midnight':           'Modern Dark',
+  'feature.theme.light':              'Modern Light',
   'feature.stageLabels.heading':      'Stage names',
   'feature.shortcuts.heading':        'Keyboard shortcuts',
   'feature.graphControls.heading':    'Graph Controls',
@@ -166,6 +175,17 @@ export const DEFAULT_STRINGS: Record<string, string> = {
   'graph.createHere':                 'Create thought here',
   'graph.resetViewport':              'Reset viewport',
   'graph.settleGraph':                'Settle graph',
+  'triage.title':                     'Triage',
+  'triage.stale.heading':             'Stale Thoughts',
+  'triage.untriaged.heading':         'Review Required',
+  'triage.empty':                     'All caught up!',
+
+  // ── Map Landing (Macro Orbs) ──────────────────────────────────────────
+  'map.landing.fullGraph':            'Full Graph',
+  'map.landing.explore':              'Explore your thought universe',
+  'map.landing.archive':              'View archived',
+  'map.landing.thoughts':             '{count} thoughts',
+  'map.landing.backToLanding':        'Back to overview',
 };
 
 // Placeholder: once userSettings exists in Dexie, read string_overrides here.

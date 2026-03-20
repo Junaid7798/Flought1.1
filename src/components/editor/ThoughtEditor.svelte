@@ -6,6 +6,7 @@
 	import { markdown } from '@codemirror/lang-markdown';
 	import { defaultKeymap, historyKeymap } from '@codemirror/commands';
 	import { history } from '@codemirror/commands';
+	import matter from 'gray-matter';
 	import {
 		updateThought, rebuildEdgesForThought, getThoughtStates,
 		getThoughtStatesAndAliases,
@@ -28,6 +29,7 @@
 	import { createSemanticFolding } from './extensions/semanticFolding';
 	import { createVaultAutocomplete } from './extensions/vaultAutocomplete';
 	import { createSmartLists } from './extensions/smartLists';
+	import { colorExtension } from '$lib/colorExtension';
 	import FloatingToolbar from './FloatingToolbar.svelte';
 	import SlashMenu, { type SlashItem } from './SlashMenu.svelte';
 
@@ -36,8 +38,11 @@
 	interface Props {
 		thought: Thought;
 		searchWorker: Worker | null;
+		bodyOnly?: boolean;
+		initialBody?: string;
+		isHeaderEditing?: boolean; // Added for FloatingToolbar conditional rendering
 	}
-	let { thought, searchWorker }: Props = $props();
+	let { thought, searchWorker, bodyOnly = false, initialBody = '', isHeaderEditing = false }: Props = $props(); // Added isHeaderEditing
 
 	// ── DOM refs ──────────────────────────────────────────────────────────────
 
@@ -45,84 +50,92 @@
 	let view: EditorView | null = null;
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-	// ── Slash command state ───────────────────────────────────────────────────
+	// ── State ─────────────────────────────────────────────────────────────────
 
 	let slashOpen = $state(false);
 	let slashX = $state(0);
 	let slashY = $state(0);
 	let slashFrom = -1;
-
-	// ── Vault autocomplete terms ──────────────────────────────────────────────
-
 	let autocompleteTerms = $state<string[]>([]);
-
-	// ── Typing rhythm bar ─────────────────────────────────────────────────────
-
 	let isTyping = $state(false);
 	let typingFadeTimer: ReturnType<typeof setTimeout> | null = null;
 
-	// ── Live thought-state + embed subscriptions ─────────────────────────────
-
 	let stateMapSub: { unsubscribe(): void } | null = null;
 	let embedSub: { unsubscribe(): void } | null = null;
+	let formatHandler: ((e: any) => void) | null = null;
 
 	// ── CodeMirror theme ──────────────────────────────────────────────────────
 
-	const midnightTheme = EditorView.theme(
+	const modernTheme = EditorView.theme(
 		{
 			'&': {
-				height: '100%',
-				backgroundColor: 'var(--bg-deep)',
+				height: 'auto',
+				backgroundColor: 'transparent',
 				color: 'var(--text-primary)',
-				fontFamily: "'Geist', sans-serif",
-				fontSize: '1rem',
+				fontFamily: "'Inter', system-ui, sans-serif",
+				fontSize: '18px',
+				lineHeight: '1.8',
+				letterSpacing: '-0.01em',
+			},
+			'.cm-gutters': {
+				backgroundColor: 'transparent',
+				borderRight: 'none',
+				color: 'var(--text-muted)',
+				display: 'none',
 			},
 			'.cm-scroller': {
-				overflow: 'auto',
-				lineHeight: '1.7',
+				overflow: 'visible',
 				fontFamily: 'inherit',
 			},
 			'.cm-content': {
-				maxWidth: '600px',
-				margin: '0 auto',
-				padding: '2rem 1.5rem',
+				padding: '0 0 50vh',
 				caretColor: 'var(--color-brand)',
 			},
-			'.cm-line': { padding: '0' },
-			'&.cm-focused': { outline: 'none' },
-			'&.cm-focused .cm-cursor': { borderLeftColor: 'var(--color-brand)' },
-			'.cm-selectionBackground, ::selection': { backgroundColor: 'var(--bg-hover)' },
-			'.cm-activeLine': { backgroundColor: 'transparent' },
-			'.cm-header':  { color: 'var(--text-primary)', fontWeight: '700' },
-			'.cm-strong':  { color: 'var(--text-primary)', fontWeight: '700' },
-			'.cm-em':      { color: 'var(--text-secondary)', fontStyle: 'italic' },
-			'.cm-link':    { color: 'var(--color-brand)', textDecoration: 'none' },
-			'.cm-url':     { color: 'var(--text-muted)' },
-			'.cm-monospace, .cm-code': {
-				fontFamily: 'monospace',
-				color: 'var(--text-secondary)',
-				backgroundColor: 'var(--bg-surface)',
-				borderRadius: '3px',
-				padding: '0 0.25em',
+			'.cm-line': { padding: '0 4px' },
+			'.cm-activeLine': { 
+				backgroundColor: 'rgba(255, 255, 255, 0.01)',
 			},
-			'.cm-gutters': { display: 'none' },
+			'&.cm-focused': { outline: 'none' },
+			'.cm-cursor': { borderLeft: '2.5px solid var(--color-brand)' },
+			'.cm-header':  { color: 'var(--text-primary)', fontWeight: '800', letterSpacing: '-0.04em', marginTop: '2em', marginBottom: '0.5em' },
+			'.cm-header-1': { fontSize: '2em' },
+			'.cm-header-2': { fontSize: '1.6em' },
+			'.cm-header-3': { fontSize: '1.3em' }, // Added for h3
+			'.cm-blockquote': { // Added for quote
+				borderLeft: '3px solid var(--border-separator)',
+				paddingLeft: '1.5rem',
+				color: 'var(--text-secondary)',
+				fontStyle: 'italic',
+				margin: '2em 0',
+			},
 		},
 		{ dark: true }
 	);
 
 	// ── Flush helpers ─────────────────────────────────────────────────────────
 
-	async function flushContent(content: string) {
-		await updateThought(thought.id, { content });
+	async function flushContent(rawText: string) {
+		let finalContent = rawText;
+
+		if (bodyOnly) {
+			try {
+				const { data } = matter(thought.content);
+				finalContent = matter.stringify(rawText, data);
+			} catch (e) {
+				// Fallback if original content isn't valid frontmatter
+				finalContent = rawText;
+			}
+		}
+
+		await updateThought(thought.id, { content: finalContent });
 		searchWorker?.postMessage({
 			type: 'update',
-			thought: { id: thought.id, title: thought.title, content },
+			thought: { id: thought.id, title: thought.title, content: finalContent },
 		});
 	}
 
-	// Rebuild wikilink edges — call on blur or unmount ONLY (Rule 12)
-	async function flushEdges(content: string) {
-		const links = extractLinks(content);
+	async function flushEdges(rawText: string) {
+		const links = extractLinks(rawText);
 		await rebuildEdgesForThought(thought.id, links);
 	}
 
@@ -133,6 +146,8 @@
 		const coords = view.coordsAtPos(pos);
 		if (!coords) return;
 		const rect = containerEl.getBoundingClientRect();
+		const scrollRect = view.scrollDOM.getBoundingClientRect();
+		
 		slashX = coords.left - rect.left;
 		slashY = coords.bottom - rect.top + 4;
 		slashFrom = pos;
@@ -154,8 +169,6 @@
 		view?.focus();
 	}
 
-	// ── Context — expose EditorView to child components ───────────────────────
-
 	const getView: EditorViewGetter = () => view;
 	setContext(EDITOR_VIEW_KEY, getView);
 
@@ -164,13 +177,11 @@
 	onMount(async () => {
 		if (!containerEl) return;
 
-		// Load vault terms for autocomplete (title + aliases)
 		const statesAndAliases = await getThoughtStatesAndAliases();
 		autocompleteTerms = statesAndAliases
 			.filter((s) => s.id !== thought.id)
 			.flatMap((s) => [s.title, ...s.aliases]);
 
-		// Subscribe to live thought states for thermal pill decorations
 		stateMapSub = getThoughtStates(thought.library_id).subscribe((states) => {
 			if (!view) return;
 			const map: ThoughtStateMap = new Map(
@@ -181,7 +192,6 @@
 			view.dispatch({ effects: [updateThoughtStates.of(map)] });
 		});
 
-		// Subscribe to full thoughts list for embed card decorations (![[Title]])
 		embedSub = getThoughtsByLibrary(thought.library_id).subscribe((thoughts) => {
 			if (!view) return;
 			const map: EmbedMap = new Map(
@@ -196,7 +206,7 @@
 		});
 
 		const startState = EditorState.create({
-			doc: thought.content,
+			doc: bodyOnly ? initialBody : thought.content,
 			extensions: [
 				history(),
 				keymap.of([...defaultKeymap, ...historyKeymap]),
@@ -211,18 +221,16 @@
 				createSyntaxHiding(),
 				createSemanticFolding(),
 				createVaultAutocomplete(autocompleteTerms),
-				midnightTheme,
+				modernTheme,
 				EditorView.lineWrapping,
 				EditorView.updateListener.of((update) => {
 					if (!update.docChanged) return;
 					const content = update.state.doc.toString();
 
-					// Typing rhythm bar — light up on any keystroke, fade after 1.2s idle
 					isTyping = true;
 					if (typingFadeTimer) clearTimeout(typingFadeTimer);
 					typingFadeTimer = setTimeout(() => { isTyping = false; }, 1200);
 
-					// Slash command detection — '/' at line-start or after whitespace only
 					for (const tr of update.transactions) {
 						tr.changes.iterChanges((_fromA, _toA, _fromB, toB, inserted) => {
 							if (inserted.toString() === '/') {
@@ -235,7 +243,6 @@
 						});
 					}
 
-					// Debounced DB save + search index update
 					if (debounceTimer) clearTimeout(debounceTimer);
 					debounceTimer = setTimeout(() => {
 						flushContent(content);
@@ -253,12 +260,25 @@
 						return false;
 					},
 				}),
-				// Smart lists must be last — overrides Enter/Tab from defaultKeymap
 				createSmartLists(),
+				colorExtension,
 			],
 		});
 
 		view = new EditorView({ state: startState, parent: containerEl });
+
+		formatHandler = (e: any) => {
+			if (!view) return;
+			const { before, after } = e.detail;
+			const { from, to } = view.state.selection.main;
+			const selectedText = view.state.doc.sliceString(from, to);
+			view.dispatch({
+				changes: { from, to, insert: `${before}${selectedText}${after}` },
+				selection: { anchor: from + before.length, head: from + before.length + selectedText.length }
+			});
+			view.focus();
+		};
+		window.addEventListener('flought:format', formatHandler);
 	});
 
 	onDestroy(() => {
@@ -272,9 +292,15 @@
 		}
 		stateMapSub?.unsubscribe();
 		embedSub?.unsubscribe();
+		if (formatHandler) {
+			window.removeEventListener('flought:format', formatHandler);
+			formatHandler = null;
+		}
 		const content = view?.state.doc.toString() ?? '';
-		flushContent(content);
-		flushEdges(content);
+		if (content && view) {
+			flushContent(content);
+			flushEdges(content);
+		}
 		view?.destroy();
 		view = null;
 	});
@@ -282,22 +308,19 @@
 
 <div class="editor-shell">
 	<div class="editor-wrap" bind:this={containerEl}></div>
-
-	<!-- Typing rhythm bar: 2px cyan line, grows in on keypress, fades after idle -->
 	<div class="rhythm-bar" class:active={isTyping}></div>
+	{#if !isHeaderEditing && thought.library_id}
+		<FloatingToolbar />
+	{/if}
+	{#if slashOpen}
+		<SlashMenu
+			x={slashX}
+			y={slashY}
+			onselect={handleSlashSelect}
+			onclose={handleSlashClose}
+		/>
+	{/if}
 </div>
-
-<!-- Floating format toolbar — hidden on Capacitor native (handled inside component) -->
-<FloatingToolbar />
-
-{#if slashOpen}
-	<SlashMenu
-		x={slashX}
-		y={slashY}
-		onselect={handleSlashSelect}
-		onclose={handleSlashClose}
-	/>
-{/if}
 
 <style>
 	.editor-shell {
@@ -309,20 +332,21 @@
 
 	.editor-wrap {
 		flex: 1;
-		min-height: 0;
-		overflow: hidden;
-		background-color: var(--bg-deep);
+		min-height: 200px;
+		background-color: transparent;
 	}
 
-	/* Typing rhythm bar — Rule 9 compliant: transform + opacity only */
 	.rhythm-bar {
 		height: 2px;
-		flex-shrink: 0;
 		background: var(--color-brand);
 		opacity: 0;
 		transform: scaleX(0);
 		transform-origin: left;
 		transition: opacity 400ms, transform 400ms;
+		position: absolute;
+		bottom: -20px;
+		left: 0;
+		right: 0;
 	}
 
 	.rhythm-bar.active {

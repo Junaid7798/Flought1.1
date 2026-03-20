@@ -146,6 +146,17 @@ function buildSimulation(): ReturnType<typeof forceSimulation<SimNode>> {
         .distance(LINK_DISTANCE),
     )
     .force('center', forceCenter<SimNode>(0, 0))
+    .force('bounds', () => {
+      const min = -800;
+      const max = 800;
+      for (const n of nodes) {
+        if (n.x === undefined || n.y === undefined) continue;
+        if (n.x < min) n.vx! += (min - n.x) * 0.08;
+        if (n.x > max) n.vx! += (max - n.x) * 0.08;
+        if (n.y < min) n.vy! += (min - n.y) * 0.08;
+        if (n.y > max) n.vy! += (max - n.y) * 0.08;
+      }
+    })
     .stop(); // we'll manually tick to completion
 
   return s;

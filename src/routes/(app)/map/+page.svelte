@@ -1,36 +1,42 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { SlidersHorizontal } from 'lucide-svelte';
+	import { SlidersHorizontal, ArrowLeft } from 'lucide-svelte';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
 	import { getThoughtsByLibrary, type Thought } from '$lib/db';
 	import { $t as t } from '$lib/i18n';
 	import { GRAPH_CONFIG } from '$lib/config';
 	import GraphCanvas from '../../../components/graph/GraphCanvas.svelte';
 	import GraphControlsPanel from '../../../components/graph/GraphControlsPanel.svelte';
+	import StageFilter from '../../../components/graph/StageFilter.svelte';
+	import MapLanding from '../../../components/graph/MapLanding.svelte';
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
-	let showFullGraph  = $state(false);
-	let controlsOpen  = $state(false);
-	let totalCount = $state(0);
+	let mapMode     = $state<'landing' | 'graph'>('landing');
+	let stageFilter = $state<number | null>(null);
+	let controlsOpen = $state(false);
+	let totalCount   = $state(0);
+	let visibleCount = $state(0);
 
 	// ── Derived ──────────────────────────────────────────────────────────────
 
-	const effectiveActiveId = $derived(showFullGraph ? null : uiStore.focusedNodeId);
-
-	const visibleCount = $derived(
-		effectiveActiveId
-			? totalCount // neighbourhood count computed inside canvas
-			: Math.min(totalCount, GRAPH_CONFIG.maxViewportNodes)
+	const effectiveActiveId = $derived(
+		mapMode === 'graph' && stageFilter === null
+			? uiStore.focusedNodeId
+			: null,
 	);
 
 	const statsText = $derived(
 		t('map.stats')
 			.replace('{total}', String(totalCount))
-			.replace('{visible}', String(visibleCount))
+			.replace('{visible}', String(visibleCount)),
 	);
 
-	// ── Live count subscription ──────────────────────────────────────────────
+	// ── Stage counts for the landing orbs ────────────────────────────────────
+
+	let stageCounts = $state<Record<number, number>>({ 1: 0, 2: 0, 3: 0, 4: 0 });
+
+	// ── Live subscription ────────────────────────────────────────────────────
 
 	let thoughtsSub: { unsubscribe(): void } | null = null;
 
@@ -39,59 +45,83 @@
 		thoughtsSub = getThoughtsByLibrary(uiStore.activeLibraryId).subscribe(
 			(thoughts: Thought[]) => {
 				totalCount = thoughts.length;
-			}
+				const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+				for (const t of thoughts) {
+					counts[t.meta_state] = (counts[t.meta_state] ?? 0) + 1;
+				}
+				stageCounts = counts;
+			},
 		);
 	});
 
 	onDestroy(() => {
 		thoughtsSub?.unsubscribe();
 	});
+
+	// ── Landing → Graph transition ──────────────────────────────────────────
+
+	function handleSelectStage(stageId: number | null) {
+		stageFilter = stageId;
+		mapMode = 'graph';
+	}
+
+	function backToLanding() {
+		stageFilter = null;
+		mapMode = 'landing';
+	}
 </script>
 
 <div class="map-page">
 	<GraphCanvas
-		libraryId={uiStore.activeLibraryId}
+		libraryId={uiStore.activeLibraryId!}
 		activeThoughtId={effectiveActiveId}
+		bind:renderedCount={visibleCount}
+		{stageFilter}
 	/>
 
-	<!-- Empty state — shown when library has no thoughts -->
-	{#if totalCount === 0}
-		<div class="empty-state" aria-live="polite">
-			<p class="empty-title">{t('map.emptyTitle')}</p>
-			<p class="empty-hint">{t('map.emptyHint')}</p>
-		</div>
+	{#if mapMode === 'landing'}
+		<MapLanding
+			{stageCounts}
+			{totalCount}
+			onSelectStage={handleSelectStage}
+		/>
 	{/if}
 
-	<!-- Floating toolbar -->
-	<div class="toolbar" role="toolbar" aria-label={t('nav.map')}>
-		<label class="toggle">
-			<input
-				class="toggle-input"
-				type="checkbox"
-				bind:checked={showFullGraph}
-			/>
-			<span class="toggle-track" aria-hidden="true">
-				<span class="toggle-thumb"></span>
-			</span>
-			<span class="toggle-label">{t('map.showAll')}</span>
-		</label>
+	{#if mapMode === 'graph'}
+		<div class="overlays">
+			<div class="overlay-left">
+				<StageFilter />
+			</div>
 
-		<span class="stats">{statsText}</span>
+			<!-- Floating toolbar -->
+			<div class="toolbar" role="toolbar" aria-label={t('nav.map')}>
+				<button
+					class="back-btn"
+					type="button"
+					aria-label={t('map.landing.backToLanding')}
+					onclick={backToLanding}
+				>
+					<ArrowLeft size={15} strokeWidth={2} />
+				</button>
 
-		<button
-			class="controls-btn"
-			class:active={controlsOpen}
-			type="button"
-			aria-label={t('graph.controls')}
-			aria-pressed={controlsOpen}
-			onclick={() => (controlsOpen = !controlsOpen)}
-		>
-			<SlidersHorizontal size={15} strokeWidth={2} />
-		</button>
-	</div>
+				<span class="stats">{statsText}</span>
 
-	{#if controlsOpen}
-		<GraphControlsPanel />
+				<button
+					class="controls-btn"
+					class:active={controlsOpen}
+					type="button"
+					aria-label={t('graph.controls')}
+					aria-pressed={controlsOpen}
+					onclick={() => (controlsOpen = !controlsOpen)}
+				>
+					<SlidersHorizontal size={15} strokeWidth={2} />
+				</button>
+			</div>
+		</div>
+
+		{#if controlsOpen}
+			<GraphControlsPanel />
+		{/if}
 	{/if}
 </div>
 
@@ -103,34 +133,41 @@
 		overflow: hidden;
 	}
 
-	.empty-state {
+	.map-page::after {
+		content: '';
 		position: absolute;
 		inset: 0;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
 		pointer-events: none;
-		gap: 0.5rem;
+		background: radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.3) 100%);
+		z-index: 5;
+		opacity: 0.6;
+		transition: opacity 0.3s;
 	}
 
-	.empty-title {
-		font-size: 1.0625rem;
-		font-weight: 600;
-		color: var(--text-secondary);
-		margin: 0;
+	@media (max-width: 767px) {
+		.map-page::after {
+			opacity: 0.3;
+		}
 	}
 
-	.empty-hint {
-		font-size: 0.875rem;
-		color: var(--text-muted);
-		margin: 0;
+	.overlays {
+		position: absolute;
+		top: 0.75rem;
+		left: 0.75rem;
+		right: 0.75rem;
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 1rem;
+		pointer-events: none;
+		z-index: 10;
+	}
+
+	.overlay-left {
+		pointer-events: auto;
 	}
 
 	.toolbar {
-		position: absolute;
-		top: 0.75rem;
-		right: 0.75rem;
 		display: flex;
 		align-items: center;
 		gap: 1rem;
@@ -140,63 +177,7 @@
 		border: 1px solid var(--border-strong);
 		border-radius: 10px;
 		padding: 0.5rem 0.75rem;
-		z-index: 10;
-	}
-
-	.toggle {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		cursor: pointer;
-		min-height: 44px;
-	}
-
-	/* Visually hidden native input — keeps keyboard + screen reader support */
-	.toggle-input {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		opacity: 0;
-		pointer-events: none;
-	}
-
-	.toggle-track {
-		position: relative;
-		width: 28px;
-		height: 16px;
-		border-radius: 8px;
-		background: var(--bg-hover);
-		border: 1px solid var(--border-strong);
-		flex-shrink: 0;
-		transition: background 150ms, border-color 150ms;
-	}
-
-	.toggle-input:checked ~ .toggle-track {
-		background: var(--color-brand);
-		border-color: var(--color-brand);
-	}
-
-	.toggle-thumb {
-		position: absolute;
-		top: 2px;
-		left: 2px;
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-		background: var(--text-muted);
-		transition: transform 150ms, background 150ms;
-	}
-
-	.toggle-input:checked ~ .toggle-track .toggle-thumb {
-		transform: translateX(12px);
-		background: var(--bg-deep);
-	}
-
-	.toggle-label {
-		font-size: 0.8125rem;
-		color: var(--text-secondary);
-		white-space: nowrap;
-		user-select: none;
+		pointer-events: auto;
 	}
 
 	.stats {
@@ -205,6 +186,7 @@
 		white-space: nowrap;
 	}
 
+	.back-btn,
 	.controls-btn {
 		display: flex;
 		align-items: center;
@@ -222,6 +204,7 @@
 		transition: color 120ms, background 120ms;
 	}
 
+	.back-btn:hover,
 	.controls-btn:hover {
 		color: var(--text-secondary);
 		background: var(--bg-hover);
@@ -232,11 +215,24 @@
 	}
 
 	@media (max-width: 767px) {
-		.toolbar {
+		.overlays {
+			flex-direction: column;
 			top: 0.5rem;
+			left: 0.5rem;
 			right: 0.5rem;
-			padding: 0.375rem 0.625rem;
-			gap: 0.625rem;
+			gap: 0.5rem;
+		}
+
+		.toolbar {
+			width: 100%;
+			justify-content: space-between;
+			padding: 0.25rem 0.5rem;
+		}
+
+		.overlay-left {
+			width: 100%;
+			overflow-x: auto;
+			padding-bottom: 4px;
 		}
 	}
 </style>

@@ -1,11 +1,15 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import { Map, PenLine, Plus, X } from 'lucide-svelte';
-	import { Capacitor } from '@capacitor/core';
-	import { Keyboard } from '@capacitor/keyboard';
-	import { $t as t } from '$lib/i18n';
-	import { uiStore } from '$lib/stores/uiStore.svelte';
-	import SparkInput from '../capture/SparkInput.svelte';
+	import { onMount, onDestroy } from "svelte";
+	import { goto } from "$app/navigation";
+	import { Map, PenLine, Plus, X, Search, Settings } from "lucide-svelte";
+	import { Capacitor } from "@capacitor/core";
+	import { Keyboard } from "@capacitor/keyboard";
+	import { Haptics, ImpactStyle } from "@capacitor/haptics";
+	import { $t as t } from "$lib/i18n";
+	import { uiStore } from "$lib/stores/uiStore.svelte";
+	import { page } from "$app/stores";
+	import { getThoughtsByLibrary, type Thought } from "$lib/db";
+	import SparkInput from "../capture/SparkInput.svelte";
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -18,28 +22,81 @@
 
 	let captureOpen = $state(false);
 	let dockHidden = $state(false);
+	let thoughts = $state<Thought[]>([]);
+	let thoughtSub: { unsubscribe(): void } | null = null;
+
+	// ── Derived ───────────────────────────────────────────────────────────────
+
+	const activePath = $derived($page.url.pathname);
 
 	// ── Keyboard listeners (native only) ──────────────────────────────────────
 
 	onMount(() => {
+		thoughtSub = getThoughtsByLibrary(libraryId).subscribe((v) => {
+			thoughts = v;
+		});
+
 		if (!Capacitor.isNativePlatform()) return;
-		Keyboard.addListener('keyboardWillShow', () => { dockHidden = true; });
-		Keyboard.addListener('keyboardWillHide', () => { dockHidden = false; });
+		Keyboard.addListener("keyboardWillShow", () => {
+			dockHidden = true;
+		});
+		Keyboard.addListener("keyboardWillHide", () => {
+			dockHidden = false;
+		});
 	});
 
 	onDestroy(() => {
+		thoughtSub?.unsubscribe();
 		if (!Capacitor.isNativePlatform()) return;
 		Keyboard.removeAllListeners();
 	});
 
-	// ── Handlers ──────────────────────────────────────────────────────────────
+	// ── Haptics helper ────────────────────────────────────────────────────────
 
-	function selectTab(view: 'map' | 'editor') {
-		uiStore.activeView = view;
-		captureOpen = false;
+	async function haptic(style: ImpactStyle = ImpactStyle.Light) {
+		if (!Capacitor.isNativePlatform()) return;
+		try {
+			await Haptics.impact({ style });
+		} catch {}
 	}
 
-	function toggleCapture() {
+	// ── Handlers ──────────────────────────────────────────────────────────────
+
+	async function selectTab(view: "map" | "editor" | "search" | "settings") {
+		captureOpen = false;
+		await haptic();
+
+		if (view === "editor") {
+			const targetId = uiStore.focusedNodeId;
+			if (targetId) {
+				await goto(`/thought/${targetId}`);
+			} else {
+				const recent = thoughts
+					.filter((t) => !t.is_deleted)
+					.sort(
+						(a, b) =>
+							new Date(b.updated_at).getTime() -
+							new Date(a.updated_at).getTime(),
+					)[0];
+				if (recent) {
+					await goto(`/thought/${recent.id}`);
+				} else {
+					uiStore.activeView = "editor";
+					await goto("/map"); // Map handles the view state
+				}
+			}
+		} else if (view === "map") {
+			uiStore.activeView = "map";
+			await goto("/map");
+		} else if (view === "search") {
+			uiStore.commandPaletteOpen = true;
+		} else if (view === "settings") {
+			await goto("/settings");
+		}
+	}
+
+	async function toggleCapture() {
+		await haptic(ImpactStyle.Medium);
 		captureOpen = !captureOpen;
 	}
 
@@ -48,11 +105,11 @@
 	}
 
 	function handleBackdropKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter' || e.key === ' ') closeCapture();
+		if (e.key === "Enter" || e.key === " ") closeCapture();
 	}
 </script>
 
-<!-- ── Bottom sheet backdrop ──────────────────────────────────────────── -->
+<!-- Backdrop -->
 {#if captureOpen}
 	<!-- svelte-ignore a11y_interactive_supports_focus -->
 	<div
@@ -64,7 +121,7 @@
 	></div>
 {/if}
 
-<!-- ── Bottom sheet ───────────────────────────────────────────────────── -->
+<!-- Bottom sheet -->
 <div class="sheet" class:sheet-open={captureOpen} aria-hidden={!captureOpen}>
 	<div class="sheet-handle-row">
 		<div class="sheet-handle" aria-hidden="true"></div>
@@ -75,24 +132,40 @@
 	<SparkInput {libraryId} />
 </div>
 
-<!-- ── Dock ───────────────────────────────────────────────────────────── -->
+<!-- Dock -->
 <nav class="dock" class:dock-hidden={dockHidden} aria-label="Navigation">
 	<button
 		class="dock-tab"
-		class:active={uiStore.activeView === 'map' && !captureOpen}
-		onclick={() => selectTab('map')}
-		aria-label={t('nav.map')}
-		aria-current={uiStore.activeView === 'map' && !captureOpen ? 'page' : undefined}
+		class:active={uiStore.activeView === "map" &&
+			activePath === "/map" &&
+			!captureOpen}
+		onclick={() => selectTab("map")}
+		aria-label={t("nav.map")}
+		aria-current={uiStore.activeView === "map" &&
+		activePath === "/map" &&
+		!captureOpen
+			? "page"
+			: undefined}
 	>
 		<Map size={22} />
-		<span class="tab-label">{t('nav.map')}</span>
+		<span class="tab-label">{t("nav.map")}</span>
+	</button>
+
+	<button
+		class="dock-tab"
+		class:active={uiStore.commandPaletteOpen}
+		onclick={() => selectTab("search")}
+		aria-label={t("nav.search")}
+	>
+		<Search size={22} />
+		<span class="tab-label">{t("nav.search")}</span>
 	</button>
 
 	<button
 		class="dock-tab capture-tab"
 		class:active={captureOpen}
 		onclick={toggleCapture}
-		aria-label={t('capture.prompt')}
+		aria-label={t("capture.prompt")}
 		aria-expanded={captureOpen}
 	>
 		<div class="capture-pip">
@@ -102,13 +175,28 @@
 
 	<button
 		class="dock-tab"
-		class:active={uiStore.activeView === 'editor' && !captureOpen}
-		onclick={() => selectTab('editor')}
-		aria-label={t('nav.editor')}
-		aria-current={uiStore.activeView === 'editor' && !captureOpen ? 'page' : undefined}
+		class:active={(uiStore.activeView === "editor" ||
+			activePath.startsWith("/thought/")) &&
+			!captureOpen}
+		onclick={() => selectTab("editor")}
+		aria-label={t("nav.editor")}
+		aria-current={(uiStore.activeView === "editor" ||
+			activePath.startsWith("/thought/")) &&
+		!captureOpen
+			? "page"
+			: undefined}
 	>
 		<PenLine size={22} />
-		<span class="tab-label">{t('nav.editor')}</span>
+		<span class="tab-label">{t("nav.editor")}</span>
+	</button>
+
+	<button
+		class="dock-btn"
+		class:active={uiStore.isSettingsOpen}
+		onclick={() => { uiStore.isSettingsOpen = true; }}
+		aria-label={t('nav.settings')}
+	>
+		<Settings size={20} strokeWidth={2} />
 	</button>
 </nav>
 
@@ -120,6 +208,16 @@
 		inset: 0;
 		background: var(--overlay-backdrop);
 		z-index: 59;
+		animation: fadeIn var(--transition-base) ease forwards;
+	}
+
+	@keyframes fadeIn {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
 	}
 
 	/* ── Bottom sheet ────────────────────────────────────────────────────── */
@@ -133,14 +231,13 @@
 		backdrop-filter: var(--glass-blur);
 		-webkit-backdrop-filter: var(--glass-blur);
 		border-top: 1px solid var(--border-strong);
-		border-radius: 16px 16px 0 0;
+		border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 		z-index: 60;
-		/* Start off-screen below the dock */
 		transform: translateY(100%);
 		opacity: 0;
 		transition:
-			transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
-			opacity 180ms ease;
+			transform var(--transition-slow) cubic-bezier(0.34, 1.56, 0.64, 1),
+			opacity var(--transition-base) ease;
 		pointer-events: none;
 	}
 
@@ -154,20 +251,20 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0.625rem 1rem 0;
+		padding: var(--spacing-sm) var(--spacing-md) 0;
 		position: relative;
 	}
 
 	.sheet-handle {
 		width: 36px;
 		height: 4px;
-		border-radius: 2px;
+		border-radius: var(--radius-pill);
 		background: var(--border-strong);
 	}
 
 	.sheet-close {
 		position: absolute;
-		right: 0.75rem;
+		right: var(--spacing-sm);
 		top: 50%;
 		transform: translateY(-50%);
 		background: none;
@@ -177,9 +274,10 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		min-width: 44px;
-		min-height: 44px;
+		min-width: var(--size-touch);
+		min-height: var(--size-touch);
 		padding: 0;
+		transition: color var(--transition-fast);
 	}
 
 	.sheet-close:hover {
@@ -193,19 +291,19 @@
 		bottom: 0;
 		left: 0;
 		right: 0;
-		height: calc(60px + env(safe-area-inset-bottom));
+		height: calc(var(--dock-height) + env(safe-area-inset-bottom));
 		padding-bottom: env(safe-area-inset-bottom);
 		background: var(--glass-panel);
 		backdrop-filter: var(--glass-blur);
 		-webkit-backdrop-filter: var(--glass-blur);
-		border-top: 1px solid var(--border-strong);
+		border-top: 1px solid var(--border-separator);
 		display: flex;
 		align-items: stretch;
 		z-index: 70;
-
-		/* Desktop: hidden — Sidebar handles navigation */
 		display: none;
-		transition: transform 180ms ease, opacity 150ms ease;
+		transition:
+			transform var(--transition-base) ease,
+			opacity var(--transition-fast) ease;
 	}
 
 	@media (max-width: 767px) {
@@ -218,7 +316,6 @@
 		transform: translateY(100%);
 		opacity: 0;
 		pointer-events: none;
-		transition: transform 180ms ease, opacity 150ms ease;
 	}
 
 	/* ── Tabs ────────────────────────────────────────────────────────────── */
@@ -230,14 +327,16 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 0.25rem;
+		gap: 4px;
 		min-height: 44px;
 		background: none;
 		border: none;
 		cursor: pointer;
 		color: var(--text-muted);
 		font-family: inherit;
-		transition: color 120ms;
+		transition:
+			color var(--transition-fast),
+			transform var(--transition-fast);
 		padding: 0;
 	}
 
@@ -246,31 +345,33 @@
 		color: var(--color-brand);
 	}
 
+	.dock-tab:active {
+		transform: scale(0.92);
+	}
+
 	.dock-tab:focus-visible {
 		outline: 2px solid var(--color-brand);
 		outline-offset: -4px;
-		border-radius: 6px;
+		border-radius: var(--radius-sm);
 	}
 
-	/* Active indicator dot above the label */
 	.dock-tab::before {
-		content: '';
+		content: "";
 		position: absolute;
 		top: 0;
 		left: 50%;
 		transform: translateX(-50%) scaleX(0);
 		width: 20px;
 		height: 2px;
-		border-radius: 0 0 2px 2px;
+		border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 		background: var(--color-brand);
-		transition: transform 150ms;
+		transition: transform var(--transition-fast);
 	}
 
 	.dock-tab.active::before {
 		transform: translateX(-50%) scaleX(1);
 	}
 
-	/* Capture tab has no top indicator — it has the pip instead */
 	.capture-tab::before {
 		display: none;
 	}
@@ -282,7 +383,7 @@
 		text-transform: uppercase;
 	}
 
-	/* ── Capture (centre) tab ────────────────────────────────────────────── */
+	/* ── Capture tab ─────────────────────────────────────────────────────── */
 
 	.capture-tab {
 		flex: 0 0 72px;
@@ -291,17 +392,24 @@
 	.capture-pip {
 		width: 48px;
 		height: 48px;
-		border-radius: 14px;
-		background: var(--color-brand);
+		border-radius: var(--radius-lg);
+		background: var(--gradient-brand);
 		color: var(--bg-deep);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: opacity 120ms;
+		box-shadow: var(--shadow-md);
+		transition:
+			opacity var(--transition-fast),
+			transform var(--transition-fast);
 	}
 
 	.capture-tab:hover .capture-pip,
 	.capture-tab.active .capture-pip {
-		opacity: 0.85;
+		opacity: 0.9;
+	}
+
+	.capture-tab:active .capture-pip {
+		transform: scale(0.92);
 	}
 </style>

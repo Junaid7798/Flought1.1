@@ -6,14 +6,17 @@ import { FEATURE_CONFIG } from '$lib/config';
 // V2 will wrap it with a semantic scoring function without changing this file.
 export function vaultCompletionSource(terms: string[]) {
 	return function (context: CompletionContext): CompletionResult | null {
-		// Match [[wikilinks or regular words
-		const wikiMatch = context.matchBefore(/\[\[[\w\s]*/);
+		// Match [[[ wikilinks or regular words
+		const wikiMatch = context.matchBefore(/\[+[\w\s]*/);
 		const wordMatch = context.matchBefore(/\w+/);
 		const match = wikiMatch ?? wordMatch;
 		if (!match || (match.from === match.to && !context.explicit)) return null;
 
+		// Require at least two brackets for wikiMatch to be valid
+		if (wikiMatch && !wikiMatch.text.startsWith('[[')) return null;
+
 		const query = wikiMatch
-			? match.text.slice(2).toLowerCase()  // strip [[ prefix
+			? wikiMatch.text.replace(/^\[+/, '').toLowerCase() 
 			: match.text.toLowerCase();
 
 		const options = terms

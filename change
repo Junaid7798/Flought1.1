@@ -1,0 +1,113 @@
+# 📜 Flought V2: Complete Architectural & Design Change Log
+# Date: 2026-03-19
+# Scope: Theme Renaissance, Editor UX, and Graph Logic Removal
+
+This document provides a line-for-line and component-by-component breakdown of the recent "Modern" theme overhaul.
+
+---
+
+## ── 🎨 Design System & Global Styles ──────────────────────────
+### 📍 [src/app.css](file:///d:/Flought%20V2/src/app.css)
+- **Constraint Overhaul**: Migrated from a property-based theme to a class-based scope (`.theme-modern-dark`).
+- **New Variable Definitions**:
+    - `--bg-canvas`: `#050508` (Deep night base)
+    - `--bg-deep`: `#020202` (Obsidian workspace)
+    - `--glass-blur`: `blur(32px) saturate(200%)`
+    - `--highlight-strong`: `rgba(255, 255, 255, 0.14)` (Rim-lighting)
+- **Global Rendering**: Added `text-rendering: optimizeLegibility` and `-webkit-font-smoothing: antialiased` to the `body` tag.
+
+---
+
+## ── 🏗 Component Logic & Structural Modifications ──────────────
+
+### 1. 📍 [src/components/editor/ThoughtEditor.svelte](file:///d:/Flought%20V2/src/components/editor/ThoughtEditor.svelte)
+- **Layout Logic**: 
+    - Added a wrapping `div` with `max-width: 800px` and `margin: 0 auto`.
+    - Centered the CodeMirror instance within the viewport.
+- **Typography Engine**:
+    - Force-overrode `line-height` to `2.0` in the `.cm-content` class.
+    - Updated the background to a 98% opaque obsidian surface to maintain font sharpness.
+- **Active Line Extension**:
+    - Implemented a CodeMirror state field that tracks the selection and applies a `background: var(--brand-tint-low)` to the current line.
+
+### 2. 📍 [src/components/graph/GraphCanvas.svelte](file:///d:/Flought%20V2/src/components/graph/GraphCanvas.svelte)
+- **Visualization Logic**: 
+    - **DELETED**: The entire `drawHulls` function and the dependency on the `d3-hull` algorithm.
+    - **MODIFIED**: The `onMount` loop now skips all grouping checks, rendering only nodes (SVG circles) and edges (SVG lines).
+- **Styling**: Updated the `stroke` property of edges to use a dynamic opacity scale based on the distance between nodes.
+
+### 3. 📍 [src/components/layout/Sidebar.svelte](file:///d:/Flought%20V2/src/components/layout/Sidebar.svelte)
+- **Glass Integration**: Wrapped the navigation list in a `.glass` container with a 1px right-border.
+- **Active States**: 
+    - Modified the `nav` logic to apply a `box-shadow: var(--shadow-brand)` and `background: var(--brand-tint)` to the currently selected library.
+- **Hover Transitions**: Reduced transition timing to `120ms` for a snappier, high-end feel.
+
+### 4. 📍 [src/components/search/CommandPalette.svelte](file:///d:/Flought%20V2/src/components/search/CommandPalette.svelte)
+- **Modal Depth**: 
+    - Applied `backdrop-filter: blur(24px)` to the modal background.
+    - Added an inner rim-light to the input box for better visibility against the frosted background.
+
+---
+
+## ── ⚙ Configuration & Metadata ────────────────────────────────
+### 📍 [src/lib/config.ts](file:///d:/Flought%20V2/src/lib/config.ts)
+- **Pipeline Overhaul**: Replaced the hex values in `PIPELINE_STATES` with a more sophisticated, muted palette:
+    - `Inbox`: `#F59E0B` (Amber)
+    - `Queue`: `#8B5CF6` (Violet)
+    - `Forge`: `#10B981` (Emerald)
+    - `Archive`: `#475569` (Slate)
+
+### 📍 [package.json](file:///d:/Flought%20V2/package.json)
+- **Cleanup**: Preemptively identified unused D3-related grouping plugins for removal in the next build cycle.
+
+
+──────────────────────────────────────────────────────────────────
+# Date: 2026-03-20
+# Scope: Mobile UX, Interaction Dock, and Haptic Feedback
+
+This log details the strategic "Mobile UX & Interaction" overhaul to provide a premium, native feel.
+
+---
+
+## ── 🏗 Mobile Navigation & Interface ──────────────────────────
+### 📍 [src/components/layout/MobileDock.svelte](file:///d:/Flought%20V2/src/components/layout/MobileDock.svelte)
+- **New Navigation**: Added "Search" and "Settings" tabs, creating a complete 5-tab utility system for mobile.
+- **Haptic Feedback**: Integrated `@capacitor/haptics` to deliver `ImpactStyle.Light` pulses on all tab switches.
+- **Dynamic Visibility**: Implemented logic to hide the dock when the mobile keyboard is visible.
+
+### 📍 [src/routes/+layout.svelte](file:///d:/Flought%20V2/src/routes/+layout.svelte)
+- **Component Injection**: Added `Settings` and `Search` components to the base layout to support the mobile dock's visibility states.
+
+---
+
+## ── ✍ Editor & Content Experience ─────────────────────────────
+### 📍 [src/components/editor/ThoughtEditor.svelte](file:///d:/Flought%20V2/src/components/editor/ThoughtEditor.svelte)
+- **Mobile Toolbar**: Added a sticky formatting bar at the bottom for quick access to bold, italic, and checklist tools on mobile.
+- **Haptic Support**: Triggered haptic feedback on editor formatting actions for tactile confirmation.
+- **Svelte 5 Update**: Rewrote `colorExtension` to use runes mode and fixed dimmed rendering for color tags.
+
+### 📍 [src/components/capture/SparkInput.svelte](file:///d:/Flought%20V2/src/components/capture/SparkInput.svelte)
+- **Touch Targets**: Increased action button size to 42px on mobile to prevent capture errors.
+- **Haptic Pulse**: Added `ImpactStyle.Medium` pulses on successful quick capture.
+
+---
+
+## ── 🔍 Search & Spatial Graph ─────────────────────────────────
+### 📍 [src/components/search/CommandPalette.svelte](file:///d:/Flought%20V2/src/components/search/CommandPalette.svelte)
+- **Positioning**: Optimized the search palette's `top` position and width for mobile viewports to prevent status bar collision.
+- **Haptic Navigation**: Added haptic pulses to keyboard/arrow navigation and result selection.
+- **Svelte 5 Component Fix**: Migrated from deprecated `<svelte:component>` to direct component constants.
+
+### 📍 [src/components/graph/GraphCanvas.svelte](file:///d:/Flought%20V2/src/components/graph/GraphCanvas.svelte)
+- **Auto-Fit Logic**: Added `fitToView` to the `onMount` sequence to ensure the graph is centered and focused on initial load.
+- **Background Vignette**: Implemented a `background: radial-gradient` to create a centered-focus feel on the map.
+
+---
+
+## ⚙ Global Refinements
+### 📍 [src/routes/(app)/settings/+page.svelte](file:///d:/Flought%20V2/src/routes/(app)/settings/+page.svelte)
+- **Layout Optimization**: Balanced the left-padding for mobile viewports to maximize readability on narrow screens.
+
+──────────────────────────────────────────────────────────────────
+"This log ensures that every architectural shift is documented with file-level precision."
+──────────────────────────────────────────────────────────────────

@@ -97,6 +97,13 @@
 					<span class="toggle-text">{t('graph.showHulls')}</span>
 				</label>
 
+				<!-- Show Orphans toggle -->
+				<label class="toggle-row">
+					<input class="toggle-input" type="checkbox" bind:checked={uiStore.graphShowOrphans} />
+					<span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+					<span class="toggle-text">{t('graph.showOrphans')}</span>
+				</label>
+
 			</div>
 		{/if}
 	</section>

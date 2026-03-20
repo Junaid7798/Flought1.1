@@ -17,7 +17,10 @@ export type Action =
 	| 'focusSearch'      // Cmd/Ctrl+F
 	| 'goMap'            // Cmd/Ctrl+1
 	| 'goEditor'         // Cmd/Ctrl+2
-	| 'goFocus';         // Cmd/Ctrl+3
+	| 'goFocus'          // Cmd/Ctrl+3
+	| 'openSettings'     // Cmd/Ctrl+,
+	| 'toggleSidebar'    // Cmd/Ctrl+\
+	| 'quickCapture';    // Cmd/Ctrl+j
 
 // Default bindings — format: "modifier+key" (all lowercase)
 // modifier: "cmd" = Meta on Mac / Ctrl on Win/Linux; "ctrl" = always Ctrl
@@ -28,6 +31,9 @@ export const DEFAULT_BINDINGS: Record<Action, string> = {
 	goMap:          'cmd+1',
 	goEditor:       'cmd+2',
 	goFocus:        'cmd+3',
+	openSettings:   'cmd+,',
+	toggleSidebar:  'cmd+\\',
+	quickCapture:   'cmd+j',
 };
 
 // ── Internal state ─────────────────────────────────────────────────────────────
@@ -79,8 +85,11 @@ function handleKeydown(e: KeyboardEvent) {
 		target.tagName === 'TEXTAREA' ||
 		target.isContentEditable;
 
-	// Allow commandPalette + goMap/goEditor/goFocus anywhere; suppress others in editable contexts
-	const globalActions: Action[] = ['commandPalette', 'goMap', 'goEditor', 'goFocus'];
+	// Allow commandPalette + goMap/goEditor/goFocus/openSettings/toggleSidebar/quickCapture anywhere
+	const globalActions: Action[] = [
+		'commandPalette', 'goMap', 'goEditor', 'goFocus', 
+		'openSettings', 'toggleSidebar', 'quickCapture'
+	];
 	if (isEditing && !globalActions.includes(action)) return;
 
 	e.preventDefault();

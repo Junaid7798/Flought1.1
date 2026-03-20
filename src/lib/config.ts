@@ -57,6 +57,25 @@ export const FEATURE_CONFIG = {
     { id: 'italic', i18nKey: 'feature.toolbar.italic', wrap: ['*',  '*']      },
     { id: 'code',   i18nKey: 'feature.toolbar.code',   wrap: ['`',  '`']      },
     { id: 'link',   i18nKey: 'feature.toolbar.link',   wrap: ['[',  '](url)'] },
+    { id: 'h1',     i18nKey: 'feature.toolbar.h1',     wrap: ['# ', '']       },
+    { id: 'h2',     i18nKey: 'feature.toolbar.h2',     wrap: ['## ', '']      },
+    { id: 'h3',     i18nKey: 'feature.toolbar.h3',     wrap: ['### ', '']     },
+    { id: 'list',   i18nKey: 'feature.toolbar.list',   wrap: ['- ', '']       },
+    { id: 'checklist', i18nKey: 'feature.toolbar.checklist', wrap: ['- [ ] ', ''] },
+    { id: 'quote',  i18nKey: 'feature.toolbar.quote',  wrap: ['> ', '']       },
+    { id: 'emoji',  i18nKey: 'feature.toolbar.emoji',  wrap: ['😊 ', '']      },
+    { id: 'color',  i18nKey: 'feature.toolbar.color',  wrap: ['', '']         },
   ],
   GRAPH_PRESETS,
 } as const;
+
+export const EDITOR_COLORS = [
+  { name: 'Default', value: 'var(--text-primary)' },
+  { name: 'Red',     value: '#ef4444' },
+  { name: 'Orange',  value: '#f97316' },
+  { name: 'Yellow',  value: '#eab308' },
+  { name: 'Green',   value: '#22c55e' },
+  { name: 'Blue',    value: '#3b82f6' },
+  { name: 'Purple',  value: '#a855f7' },
+  { name: 'Pink',    value: '#ec4899' },
+] as const;

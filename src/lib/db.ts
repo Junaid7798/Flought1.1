@@ -40,6 +40,12 @@ export interface UserSettings {
 	sidebar_width: number;
 	pinned_thought_ids: string[];
 	font_size: number;
+	layout_width: 'normal' | 'wide' | 'full';
+	brand_color?: string;
+	enabled_plugins: string[];
+	right_sidebar_width: number;
+	left_sidebar_collapsed: boolean;
+	right_sidebar_collapsed: boolean;
 }
 
 export interface Thought {
@@ -135,6 +141,32 @@ class FloughtDB extends Dexie {
 			});
 			return Promise.all([upgradeThoughts, upgradeEdges]);
 		});
+
+		// v5 — adds enabled_plugins to userSettings
+		this.version(5).stores({
+			libraries:   'id, name, created_at, is_deleted',
+			userProfile: 'id',
+			userSettings:'id',
+			thoughts:    'id, library_id, meta_state, topic, created_at, updated_at, is_deleted',
+			edges:       'id, library_id, source_id, target_id, is_deleted',
+		}).upgrade((tx) => {
+			return tx.table('userSettings').toCollection().modify((s) => {
+				if (s.enabled_plugins === undefined) s.enabled_plugins = [];
+			});
+		});
+
+		// v6 — adds right_sidebar_width
+		this.version(6).stores({
+			libraries:   'id, name, created_at, is_deleted',
+			userProfile: 'id',
+			userSettings:'id',
+			thoughts:    'id, library_id, meta_state, topic, created_at, updated_at, is_deleted',
+			edges:       'id, library_id, source_id, target_id, is_deleted',
+		}).upgrade((tx) => {
+			return tx.table('userSettings').toCollection().modify((s) => {
+				if (s.right_sidebar_width === undefined) s.right_sidebar_width = 280;
+			});
+		});
 	}
 }
 
@@ -142,14 +174,14 @@ export const db = new FloughtDB();
 
 // ── Thought CRUD ──────────────────────────────────────────────────────────────
 
-export async function createThought(libraryId: string, title: string, is_triaged = true): Promise<string> {
+export async function createThought(libraryId: string, title: string, is_triaged = true, content = ''): Promise<string> {
 	const now = new Date().toISOString();
 	const id = generateId();
 	await db.thoughts.add({
 		id,
 		library_id: libraryId,
 		title,
-		content: '',
+		content,
 		meta_state: 1,
 		topic: '',
 		x_pos: 0,
@@ -180,7 +212,15 @@ export async function updateThought(
 		{ event: 'updated', ts: now },
 	].slice(-50);
 
-	await db.thoughts.update(id, { ...changes, updated_at: now, telemetry });
+	// Recalculate word_count when content or title changes
+	const merged = { ...changes };
+	if (merged.content !== undefined || merged.title !== undefined) {
+		const finalTitle   = merged.title   ?? existing.title;
+		const finalContent = merged.content ?? existing.content;
+		merged.word_count  = (finalTitle + ' ' + finalContent).split(/\s+/).filter(Boolean).length;
+	}
+
+	await db.thoughts.update(id, { ...merged, updated_at: now, telemetry });
 	eventBus.emit({ type: 'thought.updated', payload: { id } });
 }
 
@@ -379,7 +419,7 @@ export async function initUserProfile(
 
 	await db.userSettings.put({
 		id: SETTINGS_ID,
-		theme: 'midnight',
+		theme: 'modern-dark',
 		pipeline_label_overrides: ['Inbox', 'Queue', 'Forge', 'Archive'],
 		pipeline_colour_overrides: ['#F59E0B', '#3B82F6', '#10B981', '#6B7280'],
 		string_overrides: {},
@@ -390,6 +430,12 @@ export async function initUserProfile(
 		sidebar_width: 220,
 		pinned_thought_ids: [],
 		font_size: 16,
+		layout_width: 'normal',
+		brand_color: '#8B5CF6',
+		enabled_plugins: [],
+		right_sidebar_width: 280,
+		left_sidebar_collapsed: false,
+		right_sidebar_collapsed: false,
 	});
 }
 
@@ -436,8 +482,8 @@ export async function devSeedBypass(): Promise<string> {
 	if (!settingsExisting) {
 		await db.userSettings.put({
 			id: SETTINGS_ID,
-			theme: 'midnight',
-			pipeline_label_overrides: ['Inbox', 'Queue', 'Forge', 'Archive'],
+			theme: 'modern-dark',
+			pipeline_label_overrides: ['Inbox', 'Queue', 'Forge', 'Vault'],
 			pipeline_colour_overrides: ['#F59E0B', '#3B82F6', '#10B981', '#6B7280'],
 			string_overrides: {},
 			keyboard_shortcuts: {},
@@ -447,6 +493,12 @@ export async function devSeedBypass(): Promise<string> {
 			sidebar_width: 220,
 			pinned_thought_ids: [],
 			font_size: 16,
+			layout_width: 'normal',
+			brand_color: '#8B5CF6',
+			enabled_plugins: [],
+			right_sidebar_width: 280,
+			left_sidebar_collapsed: false,
+			right_sidebar_collapsed: false,
 		});
 	}
 
@@ -568,4 +620,27 @@ export async function removeAlias(thoughtId: string, alias: string): Promise<voi
 	if (!thought) return;
 	const aliases = thought.aliases.filter((a) => a !== alias);
 	await updateThought(thoughtId, { aliases });
+}
+
+/**
+ * Global link propogation on rename.
+ * Finds all thoughts containing [[Old Title]] and updates to [[New Title]].
+ */
+export async function propagateRename(oldTitle: string, newTitle: string): Promise<number> {
+	const oldPattern = '[[' + oldTitle + ']]';
+	const newPattern = '[[' + newTitle + ']]';
+
+	const relatedThoughts = await db.thoughts
+		.filter((t) => !t.is_deleted && t.content.includes(oldPattern))
+		.toArray();
+
+	let count = 0;
+	for (const t of relatedThoughts) {
+		const newContent = t.content.split(oldPattern).join(newPattern);
+		if (newContent !== t.content) {
+			await updateThought(t.id, { content: newContent });
+			count++;
+		}
+	}
+	return count;
 }
