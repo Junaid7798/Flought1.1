@@ -258,44 +258,36 @@
 	}
 
 	function drawHulls() {
-		if (!ctx || !uiStore.graphShowHulls || !posBuffer) return;
-		const stageGroups = new Map<number, { x: number; y: number }[]>();
+		if (!ctx) return;
+		for (const [stageId, hull] of Object.entries(hullData)) {
+			const colour = HULL_COLOUR[Number(stageId)] ?? PIPELINE_COLOUR[Number(stageId)];
+			if (!colour || hull.length < 3) continue;
 
-		for (const [id, idx] of Object.entries(nodeIndex)) {
-			const t = getThoughtById(id);
-			if (!t) continue;
-			if (!stageGroups.has(t.meta_state))
-				stageGroups.set(t.meta_state, []);
-			stageGroups
-				.get(t.meta_state)!
-				.push({ x: posBuffer[idx * 2], y: posBuffer[idx * 2 + 1] });
-		}
-
-		ctx.save();
-		for (const [stageId, points] of stageGroups) {
-			if (points.length < 3) continue;
-			const hull = getConvexHull(points);
-			const color = PIPELINE_COLOUR[stageId] ?? PIPELINE_COLOUR[1];
-
+			ctx.save();
+			ctx.globalAlpha = 0.06;
 			ctx.beginPath();
-			ctx.lineWidth = 1.5;
-			ctx.strokeStyle = color;
-			ctx.setLineDash([8 / zoom, 8 / zoom]);
-			ctx.globalAlpha = 0.25;
+
+			// Draw hull with padding — expand each point outward from centroid
+			const cx = hull.reduce((s: number, p: [number, number]) => s + p[0], 0) / hull.length;
+			const cy = hull.reduce((s: number, p: [number, number]) => s + p[1], 0) / hull.length;
+			const padding = 30;
 
 			for (let i = 0; i < hull.length; i++) {
-				const [sx, sy] = worldToScreen(hull[i].x, hull[i].y);
+				const dx = hull[i][0] - cx;
+				const dy = hull[i][1] - cy;
+				const dist = Math.hypot(dx, dy) || 1;
+				const px = hull[i][0] + (dx / dist) * padding;
+				const py = hull[i][1] + (dy / dist) * padding;
+				const [sx, sy] = worldToScreen(px, py);
 				if (i === 0) ctx.moveTo(sx, sy);
 				else ctx.lineTo(sx, sy);
 			}
-			ctx.closePath();
-			ctx.stroke();
 
-			ctx.globalAlpha = 0.04;
-			ctx.fillStyle = color;
+			ctx.closePath();
+			ctx.fillStyle = colour;
 			ctx.fill();
+			ctx.restore();
 		}
-		ctx.restore();
 	}
 
 	function getFilteredData(): { nodes: Thought[]; edges: Edge[] } {
@@ -426,8 +418,8 @@
 
 	function draw() {
 		if (!ctx || !canvasEl || !posBuffer) return;
-		const w = canvasEl.clientWidth;
-		const h = canvasEl.clientHeight;
+		const w = canvasEl.width;
+		const h = canvasEl.height;
 
 		ctx.clearRect(0, 0, w, h);
 
@@ -1113,14 +1105,6 @@
 		width: 100%;
 		height: 100%;
 		touch-action: none;
-		background-image: radial-gradient(
-			circle,
-			var(--text-muted) 1px,
-			transparent 1px
-		);
-		background-size: 40px 40px;
-		background-position: center;
-		background-attachment: fixed;
 		background-color: var(--bg-deep);
 		cursor: grab;
 	}

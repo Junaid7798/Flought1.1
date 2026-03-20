@@ -69,7 +69,7 @@ export function drawNode(
   if (zoom >= LABEL_ZOOM_THRESHOLD) {
     // Full label
     ctx.font = LABEL_FONT;
-    ctx.fillStyle = 'rgba(240,244,255,0.85)';
+    ctx.fillStyle = colour;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(label, x, y + effectiveRadius + LABEL_OFFSET_Y);
@@ -79,7 +79,7 @@ export function drawNode(
       ? label.slice(0, LABEL_MAX_CHARS - 1) + '\u2026'
       : label;
     ctx.font = LABEL_SHORT_FONT;
-    ctx.fillStyle = 'rgba(240,244,255,0.45)';
+    ctx.fillStyle = colour;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(short, x, y + effectiveRadius + LABEL_OFFSET_Y);

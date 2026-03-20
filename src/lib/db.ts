@@ -142,8 +142,8 @@ class FloughtDB extends Dexie {
 			return Promise.all([upgradeThoughts, upgradeEdges]);
 		});
 
-		// v5 — adds enabled_plugins to userSettings
-		this.version(5).stores({
+		// v4 — adds enabled_plugins to userSettings
+		this.version(4).stores({
 			libraries:   'id, name, created_at, is_deleted',
 			userProfile: 'id',
 			userSettings:'id',
@@ -155,8 +155,8 @@ class FloughtDB extends Dexie {
 			});
 		});
 
-		// v6 — adds right_sidebar_width
-		this.version(6).stores({
+		// v5 — adds right_sidebar_width
+		this.version(5).stores({
 			libraries:   'id, name, created_at, is_deleted',
 			userProfile: 'id',
 			userSettings:'id',
