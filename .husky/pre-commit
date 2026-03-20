@@ -1,0 +1,28 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# Run lint-staged on staged files
+echo "📝 Running lint-staged..."
+npx lint-staged
+
+# Full type check to catch cross-file issues
+echo "🔧 Running full type check..."
+npm run check
+
+if [ $? -ne 0 ]; then
+    echo "❌ Type check failed. Fix errors before committing."
+    exit 1
+fi
+
+# Full build to catch build errors
+echo "🏗️  Running production build..."
+npm run build
+
+if [ $? -ne 0 ]; then
+    echo "❌ Build failed. Fix errors before committing."
+    exit 1
+fi
+
+echo "✅ All checks passed!"

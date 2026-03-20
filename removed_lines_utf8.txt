@@ -1,0 +1,640 @@
+﻿-	import { onMount, onDestroy } from 'svelte';
+-	import { goto } from '$app/navigation';
+-	import { uiStore } from '$lib/stores/uiStore.svelte';
+-	} from '$lib/db';
+-	import { eventBus } from '$lib/eventBus';
+-	import { PIPELINE_STATES, GRAPH_CONFIG, ANIMATION_CONFIG, FEATURE_CONFIG } from '$lib/config';
+-	import { drawNode } from './GraphNode';
+-	import { drawEdge } from './GraphEdge';
+-	import { getUserSettings } from '$lib/db';
+-	import NodeContextMenu from './NodeContextMenu.svelte';
+-	import CanvasContextMenu from './CanvasContextMenu.svelte';
+-	let { libraryId, activeThoughtId }: Props = $props();
+-	let contextNodeTitle = $state('');
+-	let ghostColour = '';
+-				if (frontier.has(edge.source_id) && !visited.has(edge.target_id)) {
+-				if (frontier.has(edge.target_id) && !visited.has(edge.source_id)) {
+-			type: 'simulate',
+-				id:         t.id,
+-				title:      t.title,
+-				content:    t.content,
+-				x:          t.x_pos || undefined,
+-				y:          t.y_pos || undefined,
+-		const cx = (canvasEl?.width ?? 0) / 2;
+-		const cy = (canvasEl?.height ?? 0) / 2;
+-		const cx = (canvasEl?.width ?? 0) / 2;
+-		const cy = (canvasEl?.height ?? 0) / 2;
+-		return focusOpacity.get(id) ?? (activeThoughtId ? uiStore.graphDimStrength : GRAPH_CONFIG.nodeFocusOpacity);
+-			srcOp > dimStrength + 0.01 &&
+-			tgtOp > dimStrength + 0.01;
+-		return connected ? GRAPH_CONFIG.edgeFocusOpacity : GRAPH_CONFIG.edgeUnfocusedOpacity;
+-	}
+-
+-	function drawHulls() {
+-		if (!ctx) return;
+-		for (const [stageId, hull] of Object.entries(hullData)) {
+-			const colour = HULL_COLOUR[Number(stageId)] ?? PIPELINE_COLOUR[Number(stageId)];
+-			if (!colour || hull.length < 3) continue;
+-
+-			ctx.save();
+-			ctx.globalAlpha = 0.06;
+-			ctx.beginPath();
+-
+-			// Draw hull with padding ÔÇö expand each point outward from centroid
+-			const cx = hull.reduce((s, p) => s + p[0], 0) / hull.length;
+-			const cy = hull.reduce((s, p) => s + p[1], 0) / hull.length;
+-			const padding = 30;
+-
+-			for (let i = 0; i < hull.length; i++) {
+-				const dx = hull[i][0] - cx;
+-				const dy = hull[i][1] - cy;
+-				const dist = Math.hypot(dx, dy) || 1;
+-				const px = hull[i][0] + (dx / dist) * padding;
+-				const py = hull[i][1] + (dy / dist) * padding;
+-				const [sx, sy] = worldToScreen(px, py);
+-				if (i === 0) ctx.moveTo(sx, sy);
+-				else ctx.lineTo(sx, sy);
+-			}
+-
+-			ctx.closePath();
+-			ctx.fillStyle = colour;
+-			ctx.fill();
+-			ctx.restore();
+-		}
+-		// Draw convex hull blobs underneath everything
+-		if (uiStore.graphShowHulls) drawHulls();
+-			const [sx, sy] = worldToScreen(posBuffer[si * 2], posBuffer[si * 2 + 1]);
+-			const [tx, ty] = worldToScreen(posBuffer[ti * 2], posBuffer[ti * 2 + 1]);
+-			if (activeThoughtId && opacity > GRAPH_CONFIG.edgeUnfocusedOpacity + 0.001) {
+-				if (activeT) colour = PIPELINE_COLOUR[activeT.meta_state] ?? edgeBaseColour;
+-			const [sx, sy] = worldToScreen(posBuffer[idx * 2], posBuffer[idx * 2 + 1]);
+-				// Ghost node ÔÇö dashed stroke-only circle
+-				drawNode(ctx, sx, sy, uiStore.graphNodeSize, ghostColour, false, ghost.title, zoom, uiStore.graphShowLabels, true);
+-				const colour = PIPELINE_COLOUR[t.meta_state] ?? PIPELINE_COLOUR[1];
+-				const opacity = getNodeOpacity(id);
+-				drawNode(ctx, sx, sy, uiStore.graphNodeSize, colour, isActive, t.title, zoom, uiStore.graphShowLabels, false);
+-					hood.has(t.id) ? GRAPH_CONFIG.nodeFocusOpacity : uiStore.graphDimStrength,
+-		ctx = canvasEl.getContext('2d');
+-			if (dx * dx + dy * dy < hitRadius * hitRadius * zoom * zoom) return id;
+-				worker?.postMessage({ type: 'drag', id: dragNodeId, fx: wx, fy: wy });
+-			// If ghost node ÔÇö open SparkInput pre-filled with the ghost title
+-					uiStore.sparkInputPrefill = ghostMap[dragNodeId].title;
+-				worker?.postMessage({ type: 'dragEnd', id: dragNodeId });
+-			worker?.postMessage({ type: 'dragEnd', id: dragNodeId });
+-		contextNodeId    = nodeId;
+-		if (e.data?.type === 'positions') {
+-			hullData  = e.data.hulls    ?? {};
+-			ghostMap  = e.data.ghostMap ?? {};
+-			ghostOpacityFromWorker = e.data.ghostOpacity ?? FEATURE_CONFIG.GHOST_NODE_OPACITY;
+-			type: 'updateForces',
+-	// ÔöÇÔöÇ React to activeThoughtId changes ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-			worker.postMessage({ type: 'focusStage', stageId });
+-			worker.postMessage({ type: 'clearFocusStage' });
+-		ctx = canvasEl.getContext('2d');
+-		ghostColour = styles.getPropertyValue('--text-muted').trim() || '#475569';
+-			new URL('../../workers/graphWorker.ts', import.meta.url),
+-			{ type: 'module' },
+-		worker.addEventListener('message', handleWorkerMessage);
+-		unsubCreated = eventBus.on('thought.created', async (event) => {
+-			if (event.type !== 'thought.created') return;
+-				type: 'addNode',
+-					id:         t.id,
+-					title:      t.title,
+-					x:          t.x_pos || undefined,
+-					y:          t.y_pos || undefined,
+-			eventBus.on('graph.resetViewport', () => {
+-			eventBus.on('graph.settleGraph', () => {
+-				worker?.postMessage({ type: 'settle' });
+-		canvasEl.addEventListener('wheel', handleWheel, { passive: false });
+-		canvasEl.addEventListener('touchstart', handleTouchStart, { passive: true });
+-		canvasEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+-		canvasEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+-		canvasEl?.removeEventListener('wheel', handleWheel);
+-		canvasEl?.removeEventListener('touchstart', handleTouchStart);
+-		canvasEl?.removeEventListener('touchmove', handleTouchMove);
+-		canvasEl?.removeEventListener('touchend', handleTouchEnd);
+-const LABEL_FONT = '11px Geist, sans-serif';
+-const ACTIVE_RING_OPACITY = 0.4;
+-const LABEL_ZOOM_THRESHOLD = 0.8;
+-    // ÔöÇÔöÇ Ghost node ÔÇö dashed stroke-only circle, no fill ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-    ctx.arc(x, y, radius, 0, Math.PI * 2);
+-    // Ghost nodes skip label below zoom threshold
+-    ctx.arc(x, y, ACTIVE_RING_RADIUS, 0, Math.PI * 2);
+-  ctx.beginPath();
+-  ctx.arc(x, y, radius, 0, Math.PI * 2);
+-  ctx.fillStyle = colour;
+-  ctx.fill();
+-  if (showLabels && zoom >= LABEL_ZOOM_THRESHOLD && label) {
+-    ctx.fillText(label, x, y + radius + LABEL_OFFSET_Y);
+-	import { FEATURE_CONFIG } from '$lib/config';
+-	// FloatingToolbar renders nothing on Capacitor native platforms.
+-
+-
+-	// ÔöÇÔöÇ Editor context ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-
+-	// ÔöÇÔöÇ Selection listener ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-		const toolbarWidth = toolbarEl?.offsetWidth ?? 160;
+-		const rawY = rect.top + window.scrollY - 48;
+-		// Clamp to viewport edges ÔÇö FIX-V1-12
+-	// ÔöÇÔöÇ Action handler ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-	function applyWrap(wrap: readonly [string, string]) {
+-		const [before, after] = wrap;
+-		class="toolbar"
+-		{#each FEATURE_CONFIG.TOOLBAR_ACTIONS as action}
+-			<button
+-				class="toolbar-action"
+-				type="button"
+-				aria-label={t(action.i18nKey)}
+-				onmousedown={(e) => {
+-					e.preventDefault(); // prevent selection loss
+-					applyWrap(action.wrap as [string, string]);
+-				}}
+-			>
+-				{t(action.i18nKey)}
+-			</button>
+-		{/each}
+-		align-items: center;
+-		gap: 2px;
+-		padding: 4px 6px;
+-		border-radius: 8px;
+-		opacity: 0;
+-		transform: translateY(-4px);
+-		animation: toolbarIn 120ms ease forwards;
+-	@keyframes toolbarIn {
+-		to { opacity: 1; transform: translateY(0); }
+-	/* Blur only on desktop ÔÇö Rule 9 compliant (conditional application) */
+-	@media (min-width: 768px) {
+-		.toolbar {
+-			backdrop-filter: blur(12px);
+-			-webkit-backdrop-filter: blur(12px);
+-		}
+-		font-family: inherit;
+-		font-size: 0.8125rem;
+-		font-weight: 600;
+-		padding: 0.25rem 0.5rem;
+-		border-radius: 4px;
+-		transition: background 80ms, color 80ms;
+-		white-space: nowrap;
+-<script lang="ts">
+-	import { onMount } from 'svelte';
+-	import { Capacitor } from '@capacitor/core';
+-	import { Haptics, ImpactStyle } from '@capacitor/haptics';
+-	import { $t as t } from '$lib/i18n';
+-	import { PIPELINE_STATES } from '$lib/config';
+-	import { parseFrontmatter, serializeFrontmatter } from '$lib/frontmatterParser';
+-	import {
+-		getThought,
+-		getUserSettings,
+-		updateThought,
+-		addAlias,
+-		removeAlias,
+-		type Thought,
+-		type UserSettings,
+-	} from '$lib/db';
+-	import { eventBus } from '$lib/eventBus';
+-
+-	// ÔöÇÔöÇ Props ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	interface Props {
+-		thoughtId: string;
+-	}
+-	let { thoughtId }: Props = $props();
+-
+-	// ÔöÇÔöÇ State ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	let thought = $state<Thought | null>(null);
+-	let settings = $state<UserSettings | null>(null);
+-	let yamlData = $state<Record<string, unknown>>({});
+-	let aliasInput = $state('');
+-
+-	// ÔöÇÔöÇ Pipeline labels (settings overrides or i18n fallback) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	const pipelineLabels = $derived<[string, string, string, string]>(
+-		settings?.pipeline_label_overrides ?? [t('stage.1'), t('stage.2'), t('stage.3'), t('stage.4')]
+-	);
+-
+-	// ÔöÇÔöÇ Custom YAML keys (everything except reserved fields) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	const RESERVED_KEYS = new Set(['meta_state', 'created_at', 'updated_at', 'id']);
+-
+-	const customKeys = $derived(
+-		Object.keys(yamlData).filter((k) => !RESERVED_KEYS.has(k))
+-	);
+-
+-	// ÔöÇÔöÇ Formatted date ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	const createdFormatted = $derived(() => {
+-		if (!thought) return '';
+-		return new Intl.DateTimeFormat(undefined, {
+-			year: 'numeric',
+-			month: 'short',
+-			day: 'numeric',
+-		}).format(new Date(thought.created_at));
+-	});
+-
+-	// ÔöÇÔöÇ Bootstrap ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	onMount(async () => {
+-		const [t, s] = await Promise.all([getThought(thoughtId), getUserSettings()]);
+-		thought = t ?? null;
+-		settings = s ?? null;
+-		if (!thought) return;
+-		const parsed = parseFrontmatter(thought.content);
+-		yamlData = parsed.data;
+-	});
+-
+-	// ÔöÇÔöÇ Handlers ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	async function handleStageChange(e: Event) {
+-		if (!thought) return;
+-		const newState = Number((e.target as HTMLSelectElement).value) as 1 | 2 | 3 | 4;
+-
+-		if (Capacitor.isNativePlatform()) {
+-			await Haptics.impact({ style: ImpactStyle.Light });
+-		}
+-		thought = { ...thought, meta_state: newState };
+-		await updateThought(thoughtId, { meta_state: newState });
+-		eventBus.emit({ type: 'thought.stage_changed', payload: { id: thoughtId, meta_state: newState } });
+-	}
+-
+-	async function handleCustomKeyChange(key: string, value: string) {
+-		if (!thought) return;
+-		const updatedData = { ...yamlData, [key]: value };
+-		yamlData = updatedData;
+-
+-		// Re-serialize into content
+-		const parsed = parseFrontmatter(thought.content);
+-		const newContent = serializeFrontmatter(updatedData, parsed.body);
+-		thought = { ...thought, content: newContent };
+-		await updateThought(thoughtId, { content: newContent });
+-	}
+-
+-	// ÔöÇÔöÇ Alias handlers ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	async function handleAliasBlur() {
+-		const trimmed = aliasInput.trim();
+-		if (!trimmed || !thought) return;
+-		await addAlias(thoughtId, trimmed);
+-		// Refresh aliases on thought state
+-		const refreshed = await getThought(thoughtId);
+-		if (refreshed) thought = refreshed;
+-		aliasInput = '';
+-	}
+-
+-	async function handleRemoveAlias(alias: string) {
+-		if (!thought) return;
+-		await removeAlias(thoughtId, alias);
+-		thought = { ...thought, aliases: thought.aliases.filter((a) => a !== alias) };
+-	}
+-</script>
+-
+-{#if thought}
+-	<div class="mask" role="region" aria-label={t('editor.stage')}>
+-
+-		<!-- ÔöÇÔöÇ Stage selector ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ -->
+-		<div class="row">
+-			<span class="label">{t('editor.stage')}</span>
+-			<select
+-				class="stage-select"
+-				value={thought.meta_state}
+-				onchange={handleStageChange}
+-				aria-label={t('editor.stage')}
+-			>
+-				{#each PIPELINE_STATES as state, i}
+-					<option value={state.id} style="color: var({state.cssVar})">
+-						{pipelineLabels[i]}
+-					</option>
+-				{/each}
+-			</select>
+-		</div>
+-
+-		<!-- ÔöÇÔöÇ Created date (read-only) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ -->
+-		<div class="row">
+-			<span class="label">{t('editor.created')}</span>
+-			<span class="value-static">{createdFormatted()}</span>
+-		</div>
+-
+-		<!-- ÔöÇÔöÇ Custom YAML keys ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ -->
+-		{#each customKeys as key}
+-			<div class="row">
+-				<span class="label">{key}</span>
+-				<input
+-					class="value-input"
+-					type="text"
+-					value={String(yamlData[key] ?? '')}
+-					oninput={(e) => handleCustomKeyChange(key, (e.target as HTMLInputElement).value)}
+-					aria-label={key}
+-				/>
+-			</div>
+-		{/each}
+-
+-		<!-- ÔöÇÔöÇ Aliases (C.3) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ -->
+-		<div class="row alias-row">
+-			<span class="label">{t('feature.aliases')}</span>
+-			<div class="alias-wrap">
+-				{#each thought.aliases ?? [] as alias}
+-					<span class="alias-pill">
+-						{alias}
+-						<button
+-							class="alias-remove"
+-							type="button"
+-							aria-label="Remove alias {alias}"
+-							onclick={() => handleRemoveAlias(alias)}
+-						>├ù</button>
+-					</span>
+-				{/each}
+-				<input
+-					class="alias-input"
+-					type="text"
+-					placeholder="Add aliasÔÇª"
+-					bind:value={aliasInput}
+-					onblur={handleAliasBlur}
+-					onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
+-					aria-label={t('feature.aliases')}
+-				/>
+-			</div>
+-		</div>
+-
+-	</div>
+-{/if}
+-
+-<style>
+-	.mask {
+-		display: flex;
+-		flex-direction: column;
+-		gap: 0;
+-		border-bottom: 1px solid var(--border);
+-		background: var(--bg-panel);
+-		padding: 0.5rem 0;
+-		/* Align with the editor's 600px column */
+-		max-width: 600px;
+-		margin: 0 auto;
+-		width: 100%;
+-		padding-left: 1.5rem;
+-		padding-right: 1.5rem;
+-		box-sizing: border-box;
+-	}
+-
+-	.row {
+-		display: flex;
+-		align-items: center;
+-		gap: 0.75rem;
+-		min-height: 36px;
+-		padding: 0.125rem 0;
+-	}
+-
+-	.label {
+-		font-size: 0.6875rem;
+-		font-weight: 600;
+-		letter-spacing: 0.06em;
+-		text-transform: uppercase;
+-		color: var(--text-muted);
+-		min-width: 72px;
+-		flex-shrink: 0;
+-	}
+-
+-	.stage-select {
+-		background: var(--bg-surface);
+-		border: 1px solid var(--border-strong);
+-		border-radius: 6px;
+-		color: var(--text-primary);
+-		font-size: 0.8125rem;
+-		font-family: inherit;
+-		padding: 0.25rem 0.5rem;
+-		min-height: 34px;
+-		cursor: pointer;
+-		outline: none;
+-		transition: border-color 120ms;
+-	}
+-
+-	.stage-select:hover {
+-		border-color: var(--border-strong);
+-		background: var(--bg-hover);
+-	}
+-
+-	.stage-select:focus {
+-		border-color: var(--color-brand);
+-	}
+-
+-	.value-static {
+-		font-size: 0.8125rem;
+-		color: var(--text-secondary);
+-	}
+-
+-	.value-input {
+-		flex: 1;
+-		background: transparent;
+-		border: none;
+-		border-bottom: 1px solid transparent;
+-		color: var(--text-primary);
+-		font-size: 0.8125rem;
+-		font-family: inherit;
+-		padding: 0.125rem 0;
+-		outline: none;
+-		transition: border-color 120ms;
+-		min-height: 34px;
+-	}
+-
+-	.value-input:focus {
+-		border-bottom-color: var(--color-brand);
+-	}
+-
+-	.value-input::placeholder {
+-		color: var(--text-muted);
+-	}
+-
+-	/* ÔöÇÔöÇ Aliases ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+-	.alias-row { align-items: flex-start; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+-
+-	.alias-wrap {
+-		display: flex;
+-		flex-wrap: wrap;
+-		align-items: center;
+-		gap: 0.375rem;
+-		flex: 1;
+-	}
+-
+-	.alias-pill {
+-		display: inline-flex;
+-		align-items: center;
+-		gap: 0.25rem;
+-		background: var(--bg-surface);
+-		border: 1px solid var(--border-strong);
+-		border-radius: 4px;
+-		padding: 0.125rem 0.375rem;
+-		font-size: 0.75rem;
+-		color: var(--text-secondary);
+-	}
+-
+-	.alias-remove {
+-		background: none;
+-		border: none;
+-		color: var(--text-muted);
+-		cursor: pointer;
+-		font-size: 0.875rem;
+-		line-height: 1;
+-		padding: 0 0.125rem;
+-		border-radius: 2px;
+-		transition: color 120ms;
+-		min-height: 20px; /* kept inside pill ÔÇö not standalone tap target */
+-	}
+-
+-	.alias-remove:hover { color: var(--text-primary); }
+-
+-	.alias-input {
+-		background: transparent;
+-		border: none;
+-		border-bottom: 1px solid transparent;
+-		color: var(--text-primary);
+-		font-size: 0.8125rem;
+-		font-family: inherit;
+-		padding: 0.125rem 0;
+-		outline: none;
+-		transition: border-color 120ms;
+-		min-width: 80px;
+-		min-height: 28px;
+-	}
+-
+-	.alias-input:focus { border-bottom-color: var(--color-brand); }
+-	.alias-input::placeholder { color: var(--text-muted); }
+-</style>
+-	let { thought, searchWorker }: Props = $props();
+-	// ÔöÇÔöÇ Slash command state ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	// ÔöÇÔöÇ Vault autocomplete terms ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-
+-	// ÔöÇÔöÇ Typing rhythm bar ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	// ÔöÇÔöÇ Live thought-state + embed subscriptions ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-	const midnightTheme = EditorView.theme(
+-				height: '100%',
+-				backgroundColor: 'var(--bg-deep)',
+-				fontFamily: "'Geist', sans-serif",
+-				fontSize: '1rem',
+-				overflow: 'auto',
+-				lineHeight: '1.7',
+-				maxWidth: '600px',
+-				margin: '0 auto',
+-				padding: '2rem 1.5rem',
+-			'.cm-line': { padding: '0' },
+-			'&.cm-focused .cm-cursor': { borderLeftColor: 'var(--color-brand)' },
+-			'.cm-selectionBackground, ::selection': { backgroundColor: 'var(--bg-hover)' },
+-			'.cm-activeLine': { backgroundColor: 'transparent' },
+-			'.cm-header':  { color: 'var(--text-primary)', fontWeight: '700' },
+-			'.cm-strong':  { color: 'var(--text-primary)', fontWeight: '700' },
+-			'.cm-em':      { color: 'var(--text-secondary)', fontStyle: 'italic' },
+-			'.cm-link':    { color: 'var(--color-brand)', textDecoration: 'none' },
+-			'.cm-url':     { color: 'var(--text-muted)' },
+-			'.cm-monospace, .cm-code': {
+-				fontFamily: 'monospace',
+-				backgroundColor: 'var(--bg-surface)',
+-				borderRadius: '3px',
+-				padding: '0 0.25em',
+-			'.cm-gutters': { display: 'none' },
+-	async function flushContent(content: string) {
+-		await updateThought(thought.id, { content });
+-			thought: { id: thought.id, title: thought.title, content },
+-	// Rebuild wikilink edges ÔÇö call on blur or unmount ONLY (Rule 12)
+-	async function flushEdges(content: string) {
+-		const links = extractLinks(content);
+-	// ÔöÇÔöÇ Context ÔÇö expose EditorView to child components ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-
+-		// Load vault terms for autocomplete (title + aliases)
+-		// Subscribe to live thought states for thermal pill decorations
+-		// Subscribe to full thoughts list for embed card decorations (![[Title]])
+-			doc: thought.content,
+-				midnightTheme,
+-					// Typing rhythm bar ÔÇö light up on any keystroke, fade after 1.2s idle
+-					// Slash command detection ÔÇö '/' at line-start or after whitespace only
+-					// Debounced DB save + search index update
+-				// Smart lists must be last ÔÇö overrides Enter/Tab from defaultKeymap
+-		flushContent(content);
+-		flushEdges(content);
+-
+-	<!-- Typing rhythm bar: 2px cyan line, grows in on keypress, fades after idle -->
+-<!-- Floating format toolbar ÔÇö hidden on Capacitor native (handled inside component) -->
+-<FloatingToolbar />
+-
+-{#if slashOpen}
+-	<SlashMenu
+-		x={slashX}
+-		y={slashY}
+-		onselect={handleSlashSelect}
+-		onclose={handleSlashClose}
+-	/>
+-{/if}
+-
+-		min-height: 0;
+-		overflow: hidden;
+-		background-color: var(--bg-deep);
+-	/* Typing rhythm bar ÔÇö Rule 9 compliant: transform + opacity only */
+-		flex-shrink: 0;
+-import { ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+-import { type Extension, RangeSetBuilder } from '@codemirror/state';
+-// Node types whose syntax markers should be hidden when cursor is outside
+-const HIDE_NODES = new Set([
+-	'StrongEmphasis', 'Emphasis', 'ATXHeading1', 'ATXHeading2', 'ATXHeading3',
+-	'CodeMark', 'LinkMark', 'EmphasisMark',
+-]);
+-// Heading node ÔåÆ CSS class map for visual hierarchy
+-const HEADING_CLASSES: Record<string, string> = {
+-	ATXHeading1: 'cm-h1',
+-	ATXHeading2: 'cm-h2',
+-	ATXHeading3: 'cm-h3',
+-};
+-const hiddenMark = Decoration.mark({ class: 'cm-syntax-hidden' });
+-export function createSyntaxHiding(): Extension {
+-	return ViewPlugin.fromClass(
+-		class {
+-			decorations: DecorationSet;
+-			constructor(view: import('@codemirror/view').EditorView) {
+-				this.decorations = this.build(view);
+-			}
+-			update(update: ViewUpdate) {
+-				if (update.docChanged || update.selectionSet || update.viewportChanged) {
+-					this.decorations = this.build(update.view);
+-				}
+-			}
+-			build(view: import('@codemirror/view').EditorView): DecorationSet {
+-				const builder = new RangeSetBuilder<Decoration>();
+-				const cursor = view.state.selection.main.head;
+-				const tree = syntaxTree(view.state);
+-				tree.iterate({
+-					enter(node) {
+-						// Apply heading line decoration for visual hierarchy
+-						if (node.name in HEADING_CLASSES) {
+-							// heading class applied via mark on whole line
+-							return;
+-						}
+-						// Hide syntax marks when cursor is outside node
+-						if (HIDE_NODES.has(node.name)) {
+-							// Check if cursor overlaps with this node
+-							const cursorInside = cursor >= node.from && cursor <= node.to;
+-							if (!cursorInside) {
+-								// Find child mark nodes (EmphasisMark, CodeMark, etc.)
+-								node.node.cursor().iterate((child) => {
+-									if (
+-										child.name === 'EmphasisMark' ||
+-										child.name === 'CodeMark'    ||
+-										child.name === 'LinkMark'
+-									) {
+-										if (child.from < child.to) {
+-											builder.add(child.from, child.to, hiddenMark);
+-										}
+-									}
+-								});
+-							}
+-						}
+-					},
+-				});
+-				return builder.finish();
+-			}
+-		},
+-		{ decorations: (v) => v.decorations }
+-	);
+-		// Match [[wikilinks or regular words
+-		const wikiMatch = context.matchBefore(/\[\[[\w\s]*/);
+-			? match.text.slice(2).toLowerCase()  // strip [[ prefix

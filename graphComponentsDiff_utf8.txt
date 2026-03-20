@@ -1,0 +1,1358 @@
+﻿diff --git "a/D:\\tmp\\original-project\\src\\components\\graph/GraphCanvas.svelte" "b/d:\\Flought V2\\src\\components\\graph/GraphCanvas.svelte"
+index 2b03d35..6ca42b8 100644
+--- "a/D:\\tmp\\original-project\\src\\components\\graph/GraphCanvas.svelte"
++++ "b/d:\\Flought V2\\src\\components\\graph/GraphCanvas.svelte"	
+@@ -1,7 +1,7 @@
+ <script lang="ts">
+-	import { onMount, onDestroy } from 'svelte';
+-	import { goto } from '$app/navigation';
+-	import { uiStore } from '$lib/stores/uiStore.svelte';
++	import { onMount, onDestroy } from "svelte";
++	import { goto } from "$app/navigation";
++	import { uiStore } from "$lib/stores/uiStore.svelte";
+ 	import {
+ 		getThoughtsByLibrary,
+ 		getEdgesByLibrary,
+@@ -9,22 +9,29 @@
+ 		getThought,
+ 		type Thought,
+ 		type Edge,
+-	} from '$lib/db';
+-	import { eventBus } from '$lib/eventBus';
+-	import { PIPELINE_STATES, GRAPH_CONFIG, ANIMATION_CONFIG, FEATURE_CONFIG } from '$lib/config';
+-	import { drawNode } from './GraphNode';
+-	import { drawEdge } from './GraphEdge';
+-	import { getUserSettings } from '$lib/db';
+-	import NodeContextMenu from './NodeContextMenu.svelte';
+-	import CanvasContextMenu from './CanvasContextMenu.svelte';
++	} from "$lib/db";
++	import { eventBus } from "$lib/eventBus";
++	import {
++		PIPELINE_STATES,
++		GRAPH_CONFIG,
++		ANIMATION_CONFIG,
++		FEATURE_CONFIG,
++	} from "$lib/config";
++	import { drawNode } from "./GraphNode";
++	import { drawEdge } from "./GraphEdge";
++	import { getUserSettings } from "$lib/db";
++	import NodeContextMenu from "./NodeContextMenu.svelte";
++	import CanvasContextMenu from "./CanvasContextMenu.svelte";
+ 
+ 	// ÔöÇÔöÇ Props ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+ 
+ 	interface Props {
+ 		libraryId: string;
+ 		activeThoughtId: string | null;
++		renderedCount?: number;
++		stageFilter?: number | null;
+ 	}
+-	let { libraryId, activeThoughtId }: Props = $props();
++	let { libraryId, activeThoughtId, renderedCount = $bindable(0), stageFilter = null }: Props = $props();
+ 
+ 	// ÔöÇÔöÇ State ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+ 
+@@ -43,6 +50,7 @@
+ 	let camX = $state(0);
+ 	let camY = $state(0);
+ 	let zoom = $state(1);
++	let hasCentered = false;
+ 
+ 	// Drag state
+ 	let dragNodeId: string | null = null;
+@@ -52,10 +60,18 @@
+ 	let camStartX = 0;
+ 	let camStartY = 0;
+ 
++	// Hover state
++	let hoveredNodeId = $state<string | null>(null);
++	let neighborIds = $state(new Set<string>());
++
+ 	// Focus fade lerp
+ 	let focusOpacity: Map<string, number> = new Map();
+ 	let fadeAnimId: number | null = null;
+ 
++	// Node entrance animation ÔÇö tracks when each node first appeared
++	const nodeBirth: Map<string, number> = new Map();
++	const NODE_ENTRANCE_DURATION = 400; // ms
++
+ 	// Pinch state
+ 	let lastPinchDist = 0;
+ 
+@@ -73,7 +89,7 @@
+ 	let contextMenuX = $state(0);
+ 	let contextMenuY = $state(0);
+ 	let contextNodeId = $state<string | null>(null);
+-	let contextNodeTitle = $state('');
++	let contextNodeTitle = $state("");
+ 	let contextNodeStage = $state(1);
+ 	let contextNodePinned = $state(false);
+ 
+@@ -92,7 +108,7 @@
+ 	let ghostOpacityFromWorker = FEATURE_CONFIG.GHOST_NODE_OPACITY;
+ 
+ 	// Resolved ghost colour (muted, from CSS var ÔÇö resolved on main thread)
+-	let ghostColour = '';
++	let ghostColour = "";
+ 
+ 	// ÔöÇÔöÇ Colour lookup ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+ 
+@@ -118,10 +134,16 @@
+ 		for (let d = 0; d < depth; d++) {
+ 			const next = new Set<string>();
+ 			for (const edge of edges) {
+-				if (frontier.has(edge.source_id) && !visited.has(edge.target_id)) {
++				if (
++					frontier.has(edge.source_id) &&
++					!visited.has(edge.target_id)
++				) {
+ 					next.add(edge.target_id);
+ 				}
+-				if (frontier.has(edge.target_id) && !visited.has(edge.source_id)) {
++				if (
++					frontier.has(edge.target_id) &&
++					!visited.has(edge.source_id)
++				) {
+ 					next.add(edge.source_id);
+ 				}
+ 			}
+@@ -132,6 +154,142 @@
+ 		return visited;
+ 	}
+ 
++	// ÔöÇÔöÇ Geometry Helpers ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++
++	function crossProduct(
++		a: { x: number; y: number },
++		b: { x: number; y: number },
++		o: { x: number; y: number },
++	) {
++		return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
++	}
++
++	function fitToView(padding = 80) {
++		if (!posBuffer || !canvasEl) return;
++		const ids = Object.keys(nodeIndex);
++		if (ids.length === 0) return;
++
++		let minX = Infinity,
++			maxX = -Infinity;
++		let minY = Infinity,
++			maxY = -Infinity;
++
++		for (const id of ids) {
++			const idx = nodeIndex[id];
++			const x = posBuffer[idx * 2];
++			const y = posBuffer[idx * 2 + 1];
++			minX = Math.min(minX, x);
++			maxX = Math.max(maxX, x);
++			minY = Math.min(minY, y);
++			maxY = Math.max(maxY, y);
++		}
++
++		if (minX === Infinity) return;
++
++		const graphW = maxX - minX;
++		const graphH = maxY - minY;
++		const dpr = window.devicePixelRatio || 1;
++		const viewW = canvasEl.width / dpr;
++		const viewH = canvasEl.height / dpr;
++
++		if (graphW === 0 && graphH === 0) {
++			camX = minX;
++			camY = minY;
++			zoom = 1.2;
++		} else {
++			const scaleX = (viewW - padding * 2) / Math.max(1, graphW);
++			const scaleY = (viewH - padding * 2) / Math.max(1, graphH);
++			zoom = Math.min(1.5, Math.max(0.3, Math.min(scaleX, scaleY)));
++			camX = minX + graphW / 2;
++			camY = minY + graphH / 2;
++		}
++		draw();
++	}
++
++	function centerOnNode(id: string) {
++		const idx = nodeIndex[id];
++		if (idx === undefined || !posBuffer) return;
++		camX = posBuffer[idx * 2];
++		camY = posBuffer[idx * 2 + 1];
++		zoom = Math.max(zoom, 1.0);
++		draw();
++	}
++
++	function getConvexHull(points: { x: number; y: number }[]) {
++		if (points.length <= 2) return points;
++		const sorted = [...points].sort((a, b) =>
++			a.x !== b.x ? a.x - b.x : a.y - b.y,
++		);
++
++		const upper: { x: number; y: number }[] = [];
++		for (const p of sorted) {
++			while (
++				upper.length >= 2 &&
++				crossProduct(
++					upper[upper.length - 2],
++					upper[upper.length - 1],
++					p,
++				) <= 0
++			) {
++				upper.pop();
++			}
++			upper.push(p);
++		}
++
++		const lower: { x: number; y: number }[] = [];
++		for (let i = sorted.length - 1; i >= 0; i--) {
++			const p = sorted[i];
++			while (
++				lower.length >= 2 &&
++				crossProduct(
++					lower[lower.length - 2],
++					lower[lower.length - 1],
++					p,
++				) <= 0
++			) {
++				lower.pop();
++			}
++			lower.push(p);
++		}
++
++		upper.pop();
++		lower.pop();
++		return upper.concat(lower);
++	}
++
++	function drawHulls() {
++		if (!ctx) return;
++		for (const [stageId, hull] of Object.entries(hullData)) {
++			const colour = HULL_COLOUR[Number(stageId)] ?? PIPELINE_COLOUR[Number(stageId)];
++			if (!colour || hull.length < 3) continue;
++
++			ctx.save();
++			ctx.globalAlpha = 0.06;
++			ctx.beginPath();
++
++			// Draw hull with padding ÔÇö expand each point outward from centroid
++			const cx = hull.reduce((s: number, p: [number, number]) => s + p[0], 0) / hull.length;
++			const cy = hull.reduce((s: number, p: [number, number]) => s + p[1], 0) / hull.length;
++			const padding = 30;
++
++			for (let i = 0; i < hull.length; i++) {
++				const dx = hull[i][0] - cx;
++				const dy = hull[i][1] - cy;
++				const dist = Math.hypot(dx, dy) || 1;
++				const px = hull[i][0] + (dx / dist) * padding;
++				const py = hull[i][1] + (dy / dist) * padding;
++				const [sx, sy] = worldToScreen(px, py);
++				if (i === 0) ctx.moveTo(sx, sy);
++				else ctx.lineTo(sx, sy);
++			}
++
++			ctx.closePath();
++			ctx.fillStyle = colour;
++			ctx.fill();
++			ctx.restore();
++		}
++	}
++
+ 	function getFilteredData(): { nodes: Thought[]; edges: Edge[] } {
+ 		let nodes: Thought[];
+ 
+@@ -149,11 +307,25 @@
+ 				.slice(0, GRAPH_CONFIG.maxViewportNodes);
+ 		}
+ 
++		// Stage filter: when an orb is selected, show only that meta_state
++		if (stageFilter !== null && stageFilter !== undefined) {
++			nodes = nodes.filter((t) => t.meta_state === stageFilter);
++		}
++
+ 		const nodeIds = new Set(nodes.map((n) => n.id));
+ 		const edges = allEdges.filter(
+ 			(e) => nodeIds.has(e.source_id) && nodeIds.has(e.target_id),
+ 		);
+ 
++		if (!uiStore.graphShowOrphans) {
++			const connectedIds = new Set<string>();
++			for (const edge of edges) {
++				connectedIds.add(edge.source_id);
++				connectedIds.add(edge.target_id);
++			}
++			nodes = nodes.filter((n) => connectedIds.has(n.id));
++		}
++
+ 		return { nodes, edges };
+ 	}
+ 
+@@ -162,15 +334,17 @@
+ 	function sendSimulate() {
+ 		if (!worker) return;
+ 		const { nodes, edges } = getFilteredData();
++		
++		if (renderedCount !== nodes.length) renderedCount = nodes.length;
+ 
+ 		worker.postMessage({
+-			type: 'simulate',
++			type: "simulate",
+ 			nodes: nodes.map((t) => ({
+-				id:         t.id,
+-				title:      t.title,
+-				content:    t.content,
+-				x:          t.x_pos || undefined,
+-				y:          t.y_pos || undefined,
++				id: t.id,
++				title: t.title,
++				content: t.content,
++				x: t.x_pos || undefined,
++				y: t.y_pos || undefined,
+ 				meta_state: t.meta_state,
+ 			})),
+ 			edges: edges.map((e) => ({
+@@ -188,63 +362,58 @@
+ 	}
+ 
+ 	function worldToScreen(wx: number, wy: number): [number, number] {
+-		const cx = (canvasEl?.width ?? 0) / 2;
+-		const cy = (canvasEl?.height ?? 0) / 2;
++		if (!canvasEl) return [0, 0];
++		const dpr = window.devicePixelRatio || 1;
++		const cx = canvasEl.width / dpr / 2;
++		const cy = canvasEl.height / dpr / 2;
+ 		return [(wx - camX) * zoom + cx, (wy - camY) * zoom + cy];
+ 	}
+ 
+ 	function screenToWorld(sx: number, sy: number): [number, number] {
+-		const cx = (canvasEl?.width ?? 0) / 2;
+-		const cy = (canvasEl?.height ?? 0) / 2;
++		if (!canvasEl) return [0, 0];
++		const dpr = window.devicePixelRatio || 1;
++		const cx = canvasEl.width / dpr / 2;
++		const cy = canvasEl.height / dpr / 2;
+ 		return [(sx - cx) / zoom + camX, (sy - cy) / zoom + camY];
+ 	}
+ 
+ 	function getNodeOpacity(id: string): number {
+-		return focusOpacity.get(id) ?? (activeThoughtId ? uiStore.graphDimStrength : GRAPH_CONFIG.nodeFocusOpacity);
++		const base =
++			focusOpacity.get(id) ??
++			(activeThoughtId
++				? uiStore.graphDimStrength
++				: GRAPH_CONFIG.nodeFocusOpacity);
++
++		// Entrance animation: fade in from 0 over NODE_ENTRANCE_DURATION ms
++		const birth = nodeBirth.get(id);
++		if (birth !== undefined) {
++			const age = performance.now() - birth;
++			if (age < NODE_ENTRANCE_DURATION) {
++				const t = age / NODE_ENTRANCE_DURATION;
++				// Ease-out cubic
++				const eased = 1 - Math.pow(1 - t, 3);
++				return base * eased;
++			}
++		}
++		return base;
+ 	}
+ 
+ 	function getEdgeOpacity(srcId: string, tgtId: string): number {
++		// Constellation effect: If a node is hovered, its edges are high opacity
++		if (hoveredNodeId) {
++			if (srcId === hoveredNodeId || tgtId === hoveredNodeId) return 0.8;
++			return 0.05; // Dim others significantly
++		}
++
+ 		if (!activeThoughtId) return GRAPH_CONFIG.edgeFocusOpacity;
+ 		const dimStrength = uiStore.graphDimStrength;
+ 		const srcOp = focusOpacity.get(srcId) ?? dimStrength;
+ 		const tgtOp = focusOpacity.get(tgtId) ?? dimStrength;
+ 		const connected =
+-			srcOp > dimStrength + 0.01 &&
+-			tgtOp > dimStrength + 0.01;
+-		return connected ? GRAPH_CONFIG.edgeFocusOpacity : GRAPH_CONFIG.edgeUnfocusedOpacity;
+-	}
+-
+-	function drawHulls() {
+-		if (!ctx) return;
+-		for (const [stageId, hull] of Object.entries(hullData)) {
+-			const colour = HULL_COLOUR[Number(stageId)] ?? PIPELINE_COLOUR[Number(stageId)];
+-			if (!colour || hull.length < 3) continue;
+-
+-			ctx.save();
+-			ctx.globalAlpha = 0.06;
+-			ctx.beginPath();
+-
+-			// Draw hull with padding ÔÇö expand each point outward from centroid
+-			const cx = hull.reduce((s, p) => s + p[0], 0) / hull.length;
+-			const cy = hull.reduce((s, p) => s + p[1], 0) / hull.length;
+-			const padding = 30;
+-
+-			for (let i = 0; i < hull.length; i++) {
+-				const dx = hull[i][0] - cx;
+-				const dy = hull[i][1] - cy;
+-				const dist = Math.hypot(dx, dy) || 1;
+-				const px = hull[i][0] + (dx / dist) * padding;
+-				const py = hull[i][1] + (dy / dist) * padding;
+-				const [sx, sy] = worldToScreen(px, py);
+-				if (i === 0) ctx.moveTo(sx, sy);
+-				else ctx.lineTo(sx, sy);
+-			}
+-
+-			ctx.closePath();
+-			ctx.fillStyle = colour;
+-			ctx.fill();
+-			ctx.restore();
+-		}
++			srcOp > dimStrength + 0.01 && tgtOp > dimStrength + 0.01;
++		return connected
++			? GRAPH_CONFIG.edgeFocusOpacity
++			: GRAPH_CONFIG.edgeUnfocusedOpacity;
+ 	}
+ 
+ 	function draw() {
+@@ -254,8 +423,7 @@
+ 
+ 		ctx.clearRect(0, 0, w, h);
+ 
+-		// Draw convex hull blobs underneath everything
+-		if (uiStore.graphShowHulls) drawHulls();
++		drawHulls();
+ 
+ 		const { edges } = getFilteredData();
+ 
+@@ -265,44 +433,128 @@
+ 			const ti = nodeIndex[edge.target_id];
+ 			if (si === undefined || ti === undefined) continue;
+ 
+-			const [sx, sy] = worldToScreen(posBuffer[si * 2], posBuffer[si * 2 + 1]);
+-			const [tx, ty] = worldToScreen(posBuffer[ti * 2], posBuffer[ti * 2 + 1]);
++			const [sx, sy] = worldToScreen(
++				posBuffer[si * 2],
++				posBuffer[si * 2 + 1],
++			);
++			const [tx, ty] = worldToScreen(
++				posBuffer[ti * 2],
++				posBuffer[ti * 2 + 1],
++			);
++
++			// Performance: Cull edges entirely outside the viewport
++			const pad = 100;
++			if (
++				(sx < -pad && tx < -pad) ||
++				(sx > w + pad && tx > w + pad) ||
++				(sy < -pad && ty < -pad) ||
++				(sy > h + pad && ty > h + pad)
++			) {
++				continue;
++			}
+ 
+ 			const edgeBaseColour = `rgba(255,255,255,${uiStore.graphEdgeOpacity})`;
+ 			let colour = edgeBaseColour;
+ 			let opacity = getEdgeOpacity(edge.source_id, edge.target_id);
+ 
+ 			// Connected edges use active node colour in focus mode
+-			if (activeThoughtId && opacity > GRAPH_CONFIG.edgeUnfocusedOpacity + 0.001) {
++			if (
++				activeThoughtId &&
++				opacity > GRAPH_CONFIG.edgeUnfocusedOpacity + 0.001
++			) {
+ 				const activeT = getThoughtById(activeThoughtId);
+-				if (activeT) colour = PIPELINE_COLOUR[activeT.meta_state] ?? edgeBaseColour;
++				if (activeT)
++					colour =
++						PIPELINE_COLOUR[activeT.meta_state] ?? edgeBaseColour;
+ 			}
+ 
+ 			drawEdge(ctx, sx, sy, tx, ty, colour, opacity);
+ 		}
+ 
++		// Pre-compute edge counts per node for hub sizing
++		const edgeCountMap = new Map<string, number>();
++		for (const edge of edges) {
++			edgeCountMap.set(
++				edge.source_id,
++				(edgeCountMap.get(edge.source_id) ?? 0) + 1,
++			);
++			edgeCountMap.set(
++				edge.target_id,
++				(edgeCountMap.get(edge.target_id) ?? 0) + 1,
++			);
++		}
++
+ 		// Draw nodes (real and ghost)
+ 		for (const [id, idx] of Object.entries(nodeIndex)) {
+-			const [sx, sy] = worldToScreen(posBuffer[idx * 2], posBuffer[idx * 2 + 1]);
++			const [sx, sy] = worldToScreen(
++				posBuffer[idx * 2],
++				posBuffer[idx * 2 + 1],
++			);
++
++			// Performance: Cull nodes entirely outside the viewport
++			const pad = 100;
++			if (sx < -pad || sx > w + pad || sy < -pad || sy > h + pad) {
++				continue;
++			}
+ 
+ 			if (ghostMap[id]) {
+-				// Ghost node ÔÇö dashed stroke-only circle
+ 				const ghost = ghostMap[id];
+ 				ctx.save();
+ 				ctx.globalAlpha = ghostOpacityFromWorker;
+-				drawNode(ctx, sx, sy, uiStore.graphNodeSize, ghostColour, false, ghost.title, zoom, uiStore.graphShowLabels, true);
++				drawNode(
++					ctx,
++					sx,
++					sy,
++					uiStore.graphNodeSize,
++					ghostColour,
++					false,
++					ghost.title,
++					zoom,
++					uiStore.graphShowLabels,
++					true,
++					0,
++					false,
++				);
+ 				ctx.restore();
+ 			} else {
+ 				const t = getThoughtById(id);
+ 				if (!t) continue;
+ 
+-				const colour = PIPELINE_COLOUR[t.meta_state] ?? PIPELINE_COLOUR[1];
++				const colour =
++					PIPELINE_COLOUR[t.meta_state] ?? PIPELINE_COLOUR[1];
+ 				const isActive = id === activeThoughtId;
+-				const opacity = getNodeOpacity(id);
++				let opacity = getNodeOpacity(id);
++				const edgeCount = edgeCountMap.get(id) ?? 0;
++
++				// Constellation: Dim non-neighbors when someone is hovered
++				if (
++					hoveredNodeId &&
++					id !== hoveredNodeId &&
++					!neighborIds.has(id)
++				) {
++					opacity *= 0.2;
++				}
++
++				// Semantic Zoom: Hide labels if zoomed out too far
++				const showLabels = uiStore.graphShowLabels && zoom > 0.45;
+ 
+ 				ctx.save();
+ 				ctx.globalAlpha = opacity;
+-				drawNode(ctx, sx, sy, uiStore.graphNodeSize, colour, isActive, t.title, zoom, uiStore.graphShowLabels, false);
++				// Draw node dots but slightly smaller (4px) to satisfy "minimal" look while allowing visibility
++				drawNode(
++					ctx,
++					sx,
++					sy,
++					uiStore.graphNodeSize,
++					colour,
++					isActive,
++					t.title,
++					zoom,
++					showLabels,
++					false,
++					edgeCount,
++					false,
++				);
+ 				ctx.restore();
+ 			}
+ 		}
+@@ -328,7 +580,9 @@
+ 			for (const t of allThoughts) {
+ 				targets.set(
+ 					t.id,
+-					hood.has(t.id) ? GRAPH_CONFIG.nodeFocusOpacity : uiStore.graphDimStrength,
++					hood.has(t.id)
++						? GRAPH_CONFIG.nodeFocusOpacity
++						: uiStore.graphDimStrength,
+ 				);
+ 			}
+ 		}
+@@ -378,7 +632,7 @@
+ 		const rect = canvasEl.getBoundingClientRect();
+ 		canvasEl.width = rect.width * dpr;
+ 		canvasEl.height = rect.height * dpr;
+-		ctx = canvasEl.getContext('2d');
++		ctx = canvasEl.getContext("2d");
+ 		if (ctx) ctx.scale(dpr, dpr);
+ 		draw();
+ 	}
+@@ -395,7 +649,8 @@
+ 			const [nx, ny] = worldToScreen(wx, wy);
+ 			const dx = sx - nx;
+ 			const dy = sy - ny;
+-			if (dx * dx + dy * dy < hitRadius * hitRadius * zoom * zoom) return id;
++			if (dx * dx + dy * dy < hitRadius * hitRadius * zoom * zoom)
++				return id;
+ 		}
+ 		return null;
+ 	}
+@@ -438,7 +693,12 @@
+ 			const [wx, wy] = screenToWorld(px, py);
+ 			requestAnimationFrame(() => {
+ 				dragRafPending = false;
+-				worker?.postMessage({ type: 'drag', id: dragNodeId, fx: wx, fy: wy });
++				worker?.postMessage({
++					type: "drag",
++					id: dragNodeId,
++					fx: wx,
++					fy: wy,
++				});
+ 			});
+ 		} else if (isPanning) {
+ 			const dx = (px - panStartX) / zoom;
+@@ -446,6 +706,23 @@
+ 			camX = camStartX - dx;
+ 			camY = camStartY - dy;
+ 			draw();
++		} else {
++			// Hover test
++			const hit = hitTestNode(px, py);
++			if (hit !== hoveredNodeId) {
++				hoveredNodeId = hit;
++				if (hit) {
++					neighborIds = getNeighbourhood(
++						hit,
++						allThoughts,
++						allEdges,
++						1,
++					);
++				} else {
++					neighborIds = new Set();
++				}
++				draw();
++			}
+ 		}
+ 	}
+ 
+@@ -454,14 +731,18 @@
+ 		canvasEl.releasePointerCapture(e.pointerId);
+ 
+ 		if (dragNodeId) {
+-			// If ghost node ÔÇö open SparkInput pre-filled with the ghost title
++			// If ghost node ÔÇö solidify it into a real Inbox thought on click
+ 			if (ghostMap[dragNodeId]) {
+ 				const [px, py] = getPointerPos(e);
+ 				const hit = hitTestNode(px, py);
+ 				if (hit === dragNodeId) {
+-					uiStore.sparkInputPrefill = ghostMap[dragNodeId].title;
++					const ghostTitle = ghostMap[dragNodeId].title;
++					// Solidify: create a real thought from the ghost
++					const { createThought } = await import('$lib/db');
++					await createThought(libraryId, ghostTitle);
++					// Ghost will disappear on next data refresh via eventBus
+ 				}
+-				worker?.postMessage({ type: 'dragEnd', id: dragNodeId });
++				worker?.postMessage({ type: "dragEnd", id: dragNodeId });
+ 				dragNodeId = null;
+ 				isPanning = false;
+ 				return;
+@@ -474,7 +755,7 @@
+ 				const y = posBuffer[idx * 2 + 1];
+ 				await updateThought(dragNodeId, { x_pos: x, y_pos: y });
+ 			}
+-			worker?.postMessage({ type: 'dragEnd', id: dragNodeId });
++			worker?.postMessage({ type: "dragEnd", id: dragNodeId });
+ 
+ 			// If no significant movement, treat as click
+ 			const [px, py] = getPointerPos(e);
+@@ -530,7 +811,7 @@
+ 		const settings = await getUserSettings();
+ 		const pinnedIds = new Set<string>(settings?.pinned_thought_ids ?? []);
+ 
+-		contextNodeId    = nodeId;
++		contextNodeId = nodeId;
+ 		contextNodeTitle = thought.title;
+ 		contextNodeStage = thought.meta_state;
+ 		contextNodePinned = pinnedIds.has(nodeId);
+@@ -590,12 +871,37 @@
+ 	// ÔöÇÔöÇ Worker message ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+ 
+ 	function handleWorkerMessage(e: MessageEvent) {
+-		if (e.data?.type === 'positions') {
++		if (e.data?.type === "positions") {
+ 			posBuffer = e.data.buffer;
++			const oldIndex = { ...nodeIndex };
+ 			nodeIndex = e.data.nodeIndex;
+-			hullData  = e.data.hulls    ?? {};
+-			ghostMap  = e.data.ghostMap ?? {};
+-			ghostOpacityFromWorker = e.data.ghostOpacity ?? FEATURE_CONFIG.GHOST_NODE_OPACITY;
++			hullData = e.data.hulls ?? {};
++			ghostMap = e.data.ghostMap ?? {};
++			ghostOpacityFromWorker =
++				e.data.ghostOpacity ?? FEATURE_CONFIG.GHOST_NODE_OPACITY;
++
++			// Track birth time for newly appeared nodes
++			const now = performance.now();
++			for (const id of Object.keys(nodeIndex)) {
++				if (!(id in oldIndex) && !nodeBirth.has(id)) {
++					nodeBirth.set(id, now);
++				}
++			}
++
++			// Auto-center on first data load
++			if (!hasCentered && Object.keys(nodeIndex).length > 0) {
++				hasCentered = true;
++				if (activeThoughtId) {
++					// Wait a tiny bit for the worker to settle initial positions
++					setTimeout(
++						() => centerOnNode(activeThoughtId as string),
++						50,
++					);
++				} else {
++					setTimeout(() => fitToView(), 50);
++				}
++			}
++
+ 			draw();
+ 		}
+ 	}
+@@ -617,16 +923,17 @@
+ 	$effect(() => {
+ 		const { graphRepulsion, graphLinkDistance, graphSettleSpeed } = uiStore;
+ 		worker?.postMessage({
+-			type: 'updateForces',
++			type: "updateForces",
+ 			repulsion: graphRepulsion,
+ 			linkDistance: graphLinkDistance,
+ 			settleSpeed: graphSettleSpeed,
+ 		});
+ 	});
+ 
+-	// ÔöÇÔöÇ React to activeThoughtId changes ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++	// ÔöÇÔöÇ React to activeThoughtId and orphan visibility changes ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+ 
+ 	let prevActiveId: string | null = null;
++    let prevShowOrphans: boolean | null = null;
+ 
+ 	$effect(() => {
+ 		if (activeThoughtId !== prevActiveId) {
+@@ -636,6 +943,13 @@
+ 		}
+ 	});
+ 
++    $effect(() => {
++        if (prevShowOrphans !== null && prevShowOrphans !== uiStore.graphShowOrphans) {
++            sendSimulate();
++        }
++        prevShowOrphans = uiStore.graphShowOrphans;
++    });
++
+ 	// ÔöÇÔöÇ React to stage focus (Semantic Gravity) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+ 
+ 	let prevStageId: number | null = null;
+@@ -646,9 +960,9 @@
+ 		prevStageId = stageId;
+ 		if (!worker) return;
+ 		if (stageId !== null) {
+-			worker.postMessage({ type: 'focusStage', stageId });
++			worker.postMessage({ type: "focusStage", stageId });
+ 		} else {
+-			worker.postMessage({ type: 'clearFocusStage' });
++			worker.postMessage({ type: "clearFocusStage" });
+ 		}
+ 	});
+ 
+@@ -656,7 +970,7 @@
+ 
+ 	onMount(() => {
+ 		if (!canvasEl) return;
+-		ctx = canvasEl.getContext('2d');
++		ctx = canvasEl.getContext("2d");
+ 		resizeCanvas();
+ 
+ 		// Resolve CSS variables for hull and ghost colours (main thread only)
+@@ -665,14 +979,15 @@
+ 			HULL_COLOUR[s.id] = styles.getPropertyValue(s.cssVar).trim();
+ 		}
+ 		// Ghost nodes use the muted text colour (no fill, stroke only)
+-		ghostColour = styles.getPropertyValue('--text-muted').trim() || '#475569';
++		ghostColour =
++			styles.getPropertyValue("--text-muted").trim() || "#475569";
+ 
+ 		// Worker
+ 		worker = new Worker(
+-			new URL('../../workers/graphWorker.ts', import.meta.url),
+-			{ type: 'module' },
++			new URL("../../workers/graphWorker.ts", import.meta.url),
++			{ type: "module" },
+ 		);
+-		worker.addEventListener('message', handleWorkerMessage);
++		worker.addEventListener("message", handleWorkerMessage);
+ 
+ 		// Resize observer
+ 		const ro = new ResizeObserver(() => resizeCanvas());
+@@ -690,18 +1005,18 @@
+ 		});
+ 
+ 		// Listen for new thoughts ÔåÆ addNode instead of full re-simulate
+-		unsubCreated = eventBus.on('thought.created', async (event) => {
+-			if (event.type !== 'thought.created') return;
++		unsubCreated = eventBus.on("thought.created", async (event) => {
++			if (event.type !== "thought.created") return;
+ 			const t = await getThought(event.payload.id);
+ 			if (!t || t.library_id !== libraryId) return;
+ 
+ 			worker?.postMessage({
+-				type: 'addNode',
++				type: "addNode",
+ 				node: {
+-					id:         t.id,
+-					title:      t.title,
+-					x:          t.x_pos || undefined,
+-					y:          t.y_pos || undefined,
++					id: t.id,
++					title: t.title,
++					x: t.x_pos || undefined,
++					y: t.y_pos || undefined,
+ 					meta_state: t.meta_state,
+ 				},
+ 			});
+@@ -709,22 +1024,28 @@
+ 
+ 		// Listen for canvas graph events (from CanvasContextMenu)
+ 		graphUnsubs.push(
+-			eventBus.on('graph.resetViewport', () => {
++			eventBus.on("graph.resetViewport", () => {
+ 				camX = 0;
+ 				camY = 0;
+ 				zoom = 1;
+ 				draw();
+ 			}),
+-			eventBus.on('graph.settleGraph', () => {
+-				worker?.postMessage({ type: 'settle' });
++			eventBus.on("graph.settleGraph", () => {
++				worker?.postMessage({ type: "settle" });
+ 			}),
+ 		);
+ 
+ 		// Event listeners
+-		canvasEl.addEventListener('wheel', handleWheel, { passive: false });
+-		canvasEl.addEventListener('touchstart', handleTouchStart, { passive: true });
+-		canvasEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+-		canvasEl.addEventListener('touchend', handleTouchEnd, { passive: true });
++		canvasEl.addEventListener("wheel", handleWheel, { passive: false });
++		canvasEl.addEventListener("touchstart", handleTouchStart, {
++			passive: true,
++		});
++		canvasEl.addEventListener("touchmove", handleTouchMove, {
++			passive: false,
++		});
++		canvasEl.addEventListener("touchend", handleTouchEnd, {
++			passive: true,
++		});
+ 
+ 		return () => {
+ 			ro.disconnect();
+@@ -739,16 +1060,17 @@
+ 		edgesSub?.unsubscribe();
+ 		unsubCreated?.();
+ 		for (const unsub of graphUnsubs) unsub();
+-		canvasEl?.removeEventListener('wheel', handleWheel);
+-		canvasEl?.removeEventListener('touchstart', handleTouchStart);
+-		canvasEl?.removeEventListener('touchmove', handleTouchMove);
+-		canvasEl?.removeEventListener('touchend', handleTouchEnd);
++		canvasEl?.removeEventListener("wheel", handleWheel);
++		canvasEl?.removeEventListener("touchstart", handleTouchStart);
++		canvasEl?.removeEventListener("touchmove", handleTouchMove);
++		canvasEl?.removeEventListener("touchend", handleTouchEnd);
+ 	});
+ </script>
+ 
+ <canvas
+ 	class="graph-canvas"
+ 	bind:this={canvasEl}
++	style:background-position="{-camX * 0.5}px {-camY * 0.5}px"
+ 	onpointerdown={handlePointerDown}
+ 	onpointermove={handlePointerMove}
+ 	onpointerup={handlePointerUp}
+diff --git "a/D:\\tmp\\original-project\\src\\components\\graph/GraphControlsPanel.svelte" "b/d:\\Flought V2\\src\\components\\graph/GraphControlsPanel.svelte"
+index 27a6f6d..3bb1f00 100644
+--- "a/D:\\tmp\\original-project\\src\\components\\graph/GraphControlsPanel.svelte"
++++ "b/d:\\Flought V2\\src\\components\\graph/GraphControlsPanel.svelte"	
+@@ -97,6 +97,13 @@
+ 					<span class="toggle-text">{t('graph.showHulls')}</span>
+ 				</label>
+ 
++				<!-- Show Orphans toggle -->
++				<label class="toggle-row">
++					<input class="toggle-input" type="checkbox" bind:checked={uiStore.graphShowOrphans} />
++					<span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
++					<span class="toggle-text">{t('graph.showOrphans')}</span>
++				</label>
++
+ 			</div>
+ 		{/if}
+ 	</section>
+diff --git "a/D:\\tmp\\original-project\\src\\components\\graph/GraphNode.ts" "b/d:\\Flought V2\\src\\components\\graph/GraphNode.ts"
+index 6e0326a..ed3fcab 100644
+--- "a/D:\\tmp\\original-project\\src\\components\\graph/GraphNode.ts"
++++ "b/d:\\Flought V2\\src\\components\\graph/GraphNode.ts"	
+@@ -3,11 +3,14 @@
+  * No Svelte, no Dexie, no DOM ÔÇö just ctx calls.
+  */
+ 
+-const LABEL_FONT = '11px Geist, sans-serif';
++const LABEL_FONT = "500 11px 'Inter', system-ui, sans-serif";
++const LABEL_SHORT_FONT = "400 9px 'Inter', system-ui, sans-serif";
+ const LABEL_OFFSET_Y = 6;
+ const ACTIVE_RING_RADIUS = 12;
+-const ACTIVE_RING_OPACITY = 0.4;
+-const LABEL_ZOOM_THRESHOLD = 0.8;
++const ACTIVE_RING_OPACITY = 0.3;
++const LABEL_ZOOM_THRESHOLD = 0.42;
++const LABEL_SHORT_THRESHOLD = 0.22;
++const LABEL_MAX_CHARS = 12;
+ 
+ export function drawNode(
+   ctx: CanvasRenderingContext2D,
+@@ -20,19 +23,23 @@ export function drawNode(
+   zoom: number,
+   showLabels = true,
+   isGhost = false,
++  edgeCount = 0,
++  hideCircle = false,
+ ): void {
++  // ÔöÇÔöÇ Hub scaling: nodes with more edges get slightly larger ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++  const hubBonus = edgeCount > 0 ? Math.log(edgeCount + 1) * 2.5 : 0;
++  const effectiveRadius = radius + hubBonus;
++
+   if (isGhost) {
+-    // ÔöÇÔöÇ Ghost node ÔÇö dashed stroke-only circle, no fill ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+     ctx.save();
+     ctx.setLineDash([4, 4]);
+     ctx.beginPath();
+-    ctx.arc(x, y, radius, 0, Math.PI * 2);
++    ctx.arc(x, y, effectiveRadius, 0, Math.PI * 2);
+     ctx.strokeStyle = colour;
+     ctx.lineWidth = 1.5;
+     ctx.stroke();
+     ctx.setLineDash([]);
+     ctx.restore();
+-    // Ghost nodes skip label below zoom threshold
+     return;
+   }
+ 
+@@ -41,7 +48,7 @@ export function drawNode(
+     ctx.save();
+     ctx.globalAlpha = ACTIVE_RING_OPACITY;
+     ctx.beginPath();
+-    ctx.arc(x, y, ACTIVE_RING_RADIUS, 0, Math.PI * 2);
++    ctx.arc(x, y, ACTIVE_RING_RADIUS + hubBonus, 0, Math.PI * 2);
+     ctx.strokeStyle = colour;
+     ctx.lineWidth = 2;
+     ctx.stroke();
+@@ -49,17 +56,32 @@ export function drawNode(
+   }
+ 
+   // ÔöÇÔöÇ Node circle ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  ctx.beginPath();
+-  ctx.arc(x, y, radius, 0, Math.PI * 2);
+-  ctx.fillStyle = colour;
+-  ctx.fill();
++  if (!hideCircle) {
++    ctx.beginPath();
++    ctx.arc(x, y, effectiveRadius, 0, Math.PI * 2);
++    ctx.fillStyle = colour;
++    ctx.fill();
++  }
+ 
+   // ÔöÇÔöÇ Label ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  if (showLabels && zoom >= LABEL_ZOOM_THRESHOLD && label) {
++  if (!showLabels || !label) return;
++
++  if (zoom >= LABEL_ZOOM_THRESHOLD) {
++    // Full label
+     ctx.font = LABEL_FONT;
+     ctx.fillStyle = colour;
+     ctx.textAlign = 'center';
+     ctx.textBaseline = 'top';
+-    ctx.fillText(label, x, y + radius + LABEL_OFFSET_Y);
++    ctx.fillText(label, x, y + effectiveRadius + LABEL_OFFSET_Y);
++  } else if (zoom >= LABEL_SHORT_THRESHOLD) {
++    // Short label: truncate
++    const short = label.length > LABEL_MAX_CHARS
++      ? label.slice(0, LABEL_MAX_CHARS - 1) + '\u2026'
++      : label;
++    ctx.font = LABEL_SHORT_FONT;
++    ctx.fillStyle = colour;
++    ctx.textAlign = 'center';
++    ctx.textBaseline = 'top';
++    ctx.fillText(short, x, y + effectiveRadius + LABEL_OFFSET_Y);
+   }
+ }
+diff --git "a/d:\\Flought V2\\src\\components\\graph/MapLanding.svelte" "b/d:\\Flought V2\\src\\components\\graph/MapLanding.svelte"
+new file mode 100644
+index 0000000..3e9444d
+--- /dev/null
++++ "b/d:\\Flought V2\\src\\components\\graph/MapLanding.svelte"	
+@@ -0,0 +1,263 @@
++<script lang="ts">
++	import { $t as t } from '$lib/i18n';
++	import { PIPELINE_STATES } from '$lib/config';
++	import { uiStore } from '$lib/stores/uiStore.svelte';
++
++	// ÔöÇÔöÇ Props ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++	interface Props {
++		stageCounts: Record<number, number>;
++		totalCount: number;
++		onSelectStage: (stageId: number | null) => void;
++	}
++	let { stageCounts, totalCount, onSelectStage }: Props = $props();
++
++	// ÔöÇÔöÇ Orb data (exclude Archive = stage 4) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++	const activeStages = PIPELINE_STATES.filter(s => s.id !== 4);
++
++	let exiting = $state(false);
++
++	function selectOrb(stageId: number | null) {
++		exiting = true;
++		setTimeout(() => onSelectStage(stageId), 400);
++	}
++</script>
++
++<div class="landing-overlay" class:exiting>
++	<!-- Ambient glow behind the full-graph orb -->
++	<div class="ambient-glow"></div>
++
++	<!-- Full Graph Orb -->
++	<button
++		class="orb orb-full"
++		type="button"
++		onclick={() => selectOrb(null)}
++		aria-label={t('map.landing.fullGraph')}
++	>
++		<span class="orb-ring"></span>
++		<span class="orb-count">{totalCount}</span>
++		<span class="orb-label">{t('map.landing.fullGraph')}</span>
++	</button>
++
++	<p class="explore-hint">{t('map.landing.explore')}</p>
++
++	<!-- Stage orbs row -->
++	<div class="stage-row">
++		{#each activeStages as stage (stage.id)}
++			{@const count = stageCounts[stage.id] ?? 0}
++			<button
++				class="orb orb-stage"
++				type="button"
++				style="--orb-color: {stage.colour}"
++				onclick={() => selectOrb(stage.id)}
++				aria-label={t(`stage.${stage.id}`)}
++			>
++				<span class="orb-ring"></span>
++				<span class="orb-count">{count}</span>
++				<span class="orb-label">{t(`stage.${stage.id}`)}</span>
++			</button>
++		{/each}
++	</div>
++
++	<!-- Archive text link -->
++	<button
++		class="archive-link"
++		type="button"
++		onclick={() => selectOrb(4)}
++	>
++		{t('map.landing.archive')} ({stageCounts[4] ?? 0})
++	</button>
++</div>
++
++<style>
++	.landing-overlay {
++		position: absolute;
++		inset: 0;
++		z-index: 20;
++		display: flex;
++		flex-direction: column;
++		align-items: center;
++		justify-content: center;
++		gap: 1.5rem;
++		background: rgba(6, 6, 14, 0.75);
++		backdrop-filter: blur(12px);
++		-webkit-backdrop-filter: blur(12px);
++		transition: opacity 0.4s ease, transform 0.4s ease;
++	}
++
++	.landing-overlay.exiting {
++		opacity: 0;
++		transform: scale(1.05);
++		pointer-events: none;
++	}
++
++	/* ÔöÇÔöÇ Ambient glow ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
++
++	.ambient-glow {
++		position: absolute;
++		top: 50%;
++		left: 50%;
++		width: 320px;
++		height: 320px;
++		transform: translate(-50%, -60%);
++		border-radius: 50%;
++		background: radial-gradient(circle, rgba(34, 211, 238, 0.08) 0%, transparent 70%);
++		pointer-events: none;
++		animation: pulse-glow 4s ease-in-out infinite;
++	}
++
++	@keyframes pulse-glow {
++		0%, 100% { opacity: 0.6; transform: translate(-50%, -60%) scale(1); }
++		50% { opacity: 1; transform: translate(-50%, -60%) scale(1.1); }
++	}
++
++	/* ÔöÇÔöÇ Orb base ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
++
++	.orb {
++		position: relative;
++		display: flex;
++		flex-direction: column;
++		align-items: center;
++		justify-content: center;
++		border: none;
++		background: none;
++		cursor: pointer;
++		transition: transform 0.25s ease;
++	}
++
++	.orb:hover {
++		transform: scale(1.08);
++	}
++
++	.orb:active {
++		transform: scale(0.96);
++	}
++
++	.orb-ring {
++		position: absolute;
++		inset: 0;
++		border-radius: 50%;
++		border: 2px solid var(--orb-color, var(--color-brand));
++		opacity: 0.5;
++		transition: opacity 0.2s, box-shadow 0.2s;
++	}
++
++	.orb:hover .orb-ring {
++		opacity: 1;
++		box-shadow: 0 0 20px var(--orb-color, var(--color-brand)),
++		            0 0 40px color-mix(in srgb, var(--orb-color, var(--color-brand)) 30%, transparent);
++	}
++
++	/* ÔöÇÔöÇ Full Graph orb ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
++
++	.orb-full {
++		--orb-color: var(--color-brand);
++		width: 140px;
++		height: 140px;
++		border-radius: 50%;
++	}
++
++	.orb-full .orb-count {
++		font-size: 2rem;
++		font-weight: 700;
++		color: var(--color-brand);
++		line-height: 1;
++	}
++
++	.orb-full .orb-label {
++		font-size: 0.75rem;
++		color: var(--text-secondary);
++		margin-top: 4px;
++		letter-spacing: 0.04em;
++		text-transform: uppercase;
++	}
++
++	/* ÔöÇÔöÇ Stage orbs ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
++
++	.stage-row {
++		display: flex;
++		align-items: center;
++		justify-content: center;
++		gap: 2rem;
++	}
++
++	.orb-stage {
++		width: 80px;
++		height: 80px;
++		border-radius: 50%;
++	}
++
++	.orb-stage .orb-count {
++		font-size: 1.25rem;
++		font-weight: 600;
++		color: var(--orb-color);
++		line-height: 1;
++	}
++
++	.orb-stage .orb-label {
++		font-size: 0.65rem;
++		color: var(--text-muted);
++		margin-top: 2px;
++		text-transform: uppercase;
++		letter-spacing: 0.05em;
++	}
++
++	/* ÔöÇÔöÇ Explore hint ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
++
++	.explore-hint {
++		font-size: 0.8125rem;
++		color: var(--text-muted);
++		margin: 0;
++		letter-spacing: 0.02em;
++	}
++
++	/* ÔöÇÔöÇ Archive link ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
++
++	.archive-link {
++		margin-top: 0.5rem;
++		background: none;
++		border: none;
++		color: var(--text-muted);
++		font-size: 0.75rem;
++		cursor: pointer;
++		text-decoration: underline;
++		text-decoration-color: transparent;
++		text-underline-offset: 3px;
++		transition: color 0.2s, text-decoration-color 0.2s;
++	}
++
++	.archive-link:hover {
++		color: var(--text-secondary);
++		text-decoration-color: var(--text-secondary);
++	}
++
++	/* ÔöÇÔöÇ Mobile ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
++
++	@media (max-width: 767px) {
++		.landing-overlay {
++			gap: 1rem;
++			padding: 1rem;
++		}
++
++		.orb-full {
++			width: 110px;
++			height: 110px;
++		}
++
++		.orb-full .orb-count {
++			font-size: 1.5rem;
++		}
++
++		.stage-row {
++			gap: 1.25rem;
++		}
++
++		.orb-stage {
++			width: 64px;
++			height: 64px;
++		}
++
++		.orb-stage .orb-count {
++			font-size: 1rem;
++		}
++	}
++</style>
+diff --git "a/d:\\Flought V2\\src\\components\\graph/StageFilter.svelte" "b/d:\\Flought V2\\src\\components\\graph/StageFilter.svelte"
+new file mode 100644
+index 0000000..578d068
+--- /dev/null
++++ "b/d:\\Flought V2\\src\\components\\graph/StageFilter.svelte"	
+@@ -0,0 +1,99 @@
++<script lang="ts">
++	import { PIPELINE_STATES } from '$lib/config';
++	import { uiStore } from '$lib/stores/uiStore.svelte';
++	import { $t as t } from '$lib/i18n';
++
++	const stages = PIPELINE_STATES;
++</script>
++<div class="stage-filter" role="group" aria-label="Filter by stage">
++	{#each stages as stage}
++		<button
++			class="stage-dot"
++			class:active={uiStore.focusedStageId === stage.id}
++			style:--accent={stage.colour}
++			onclick={() => {
++				if (uiStore.focusedStageId === stage.id) {
++					uiStore.focusedStageId = null;
++				} else {
++					uiStore.focusedStageId = stage.id;
++				}
++			}}
++			title={t('stage.' + stage.id)}
++		>
++			<span class="dot"></span>
++			<span class="label">{t('stage.' + stage.id)}</span>
++		</button>
++	{/each}
++</div>
++
++<style>
++	.stage-filter {
++		display: flex;
++		gap: 0.5rem;
++		background: var(--glass-panel);
++		backdrop-filter: var(--glass-blur-sm);
++		-webkit-backdrop-filter: var(--glass-blur-sm);
++		border: 1px solid var(--border-strong);
++		padding: 0.375rem;
++		border-radius: 20px;
++		pointer-events: auto;
++	}
++
++	.stage-dot {
++		display: flex;
++		align-items: center;
++		gap: 0.5rem;
++		padding: 0.25rem 0.75rem 0.25rem 0.375rem;
++		border-radius: 14px;
++		border: 1px solid transparent;
++		background: none;
++		cursor: pointer;
++		transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
++		color: var(--text-muted);
++	}
++
++	.stage-dot:hover {
++		background: var(--bg-hover);
++		color: var(--text-secondary);
++	}
++
++	.stage-dot.active {
++		background: var(--accent);
++		color: #000;
++		border-color: rgba(0,0,0,0.1);
++		font-weight: 700;
++	}
++
++	.dot {
++		width: 10px;
++		height: 10px;
++		border-radius: 50%;
++		background: var(--accent);
++		box-shadow: 0 0 10px var(--accent);
++		transition: transform 0.2s;
++	}
++
++	.stage-dot.active .dot {
++		background: #000;
++		box-shadow: none;
++		transform: scale(0.8);
++	}
++
++	.label {
++		font-size: 0.75rem;
++		text-transform: uppercase;
++		letter-spacing: 0.05em;
++	}
++
++	@media (max-width: 600px) {
++		.label {
++			display: none;
++		}
++		.stage-dot {
++			padding: 0.4rem;
++		}
++		.stage-filter {
++			gap: 0.25rem;
++		}
++	}
++</style>

@@ -1,0 +1,12 @@
+{
+  "**/*.{ts,js,svelte}": [
+    "svelte-kit sync",
+    "svelte-check --tsconfig ./tsconfig.json"
+  ],
+  "*.{json,css,md}": [
+    "prettier --write"
+  ],
+  "src/**/*.{svelte,css,ts}": [
+    "bash -c \"! grep -n -E 'color:\\s*#[0-9a-fA-F]{3}|color:\\s*#[0-9a-fA-F]{6}|background(-color)?:\\s*#[0-9a-fA-F]{3}|background(-color)?:\\s*#[0-9a-fA-F]{6}|border-color:\\s*#[0-9a-fA-F]{3}|border-color:\\s*#[0-9a-fA-F]{6}' $FILE || (echo '❌ Hardcoded hex color in' $FILE >&2; exit 1)\""
+  ]
+}
