@@ -32,6 +32,7 @@
 	import { colorExtension } from '$lib/colorExtension';
 	import FloatingToolbar from './FloatingToolbar.svelte';
 	import SlashMenu, { type SlashItem } from './SlashMenu.svelte';
+	import FrontmatterMask from './FrontmatterMask.svelte';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -307,6 +308,9 @@
 </script>
 
 <div class="editor-shell">
+	{#if !isHeaderEditing && !bodyOnly && thought.library_id}
+		<FrontmatterMask thoughtId={thought.id} />
+	{/if}
 	<div class="editor-wrap" bind:this={containerEl}></div>
 	<div class="rhythm-bar" class:active={isTyping}></div>
 	{#if !isHeaderEditing && thought.library_id}

@@ -207,3 +207,18 @@ PixiJS · E2EE/AES-GCM · CRDTs/Yjs · WebRTC ·
 Import/Export engine · Plugin API · Pricing/Paywall ·
 SQLite WASM · Semantic Gravity · Block-level transclusion ·
 Universal Insights Engine · Thematic Vibe Engine
+
+---
+
+## 🔒 PROTECTED FILES — DO NOT MODIFY
+**Whatever changes we have to core, NEVER change it. If a core file or functionality requires to be edited, you MUST obtain explicit developer permission before proceeding.**
+
+The following files contain migrated core logic and must NEVER be changed:
+- FrontmatterMask.svelte
+- ThoughtEditor.svelte
+- Convex Hulls (drawHulls)
+- drawNode 
+- addEventListener('wheel')
+- onwheel,onpointerdown
+
+If any task seems to require editing these files, STOP and ask the user first.

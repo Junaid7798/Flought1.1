@@ -41,6 +41,10 @@
 	import { fade, slide, fly } from "svelte/transition";
 	import { PLUGINS } from "$lib/plugins";
 	import { goto } from "$app/navigation";
+	import JSZip from 'jszip';
+	import { parseFrontmatter, serializeFrontmatter } from '$lib/frontmatterParser';
+	import { eventBus } from '$lib/eventBus';
+	import { showToast } from '$lib/stores/toastStore.svelte';
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
@@ -50,6 +54,16 @@
 	let totalWords = $state(0);
 	let activeTab = $state<string>("appearance");
 	let searchQuery = $state("");
+
+	// ── ZIP Import State ──────────────────────────────────────────────────────
+	let importPreviewOpen = $state(false);
+	let importStats = $state({ total: 0, new: 0, duplicates: 0 });
+	let duplicateStrategy = $state<'skip' | 'overwrite' | 'copy'>('skip');
+	let parsedThoughtsCache = $state<any[]>([]);
+	let isImporting = $state(false);
+	let isExporting = $state(false);
+	let exportProgress = $state('');
+	let importProgress = $state('');
 
 	// ── Tabs ──────────────────────────────────────────────────────────────────
 
@@ -400,6 +414,167 @@
 		a.click();
 		URL.revokeObjectURL(url);
 	}
+
+	async function exportAsZip() {
+		try {
+			isExporting = true;
+			exportProgress = "Preparing thoughts...";
+			
+			const { db } = await import("$lib/db");
+			const thoughts = await db.thoughts.filter(t => !t.is_deleted).toArray();
+			
+			// Handle CommonJS/ESM interop for JSZip in Vite
+			const JSZipConstructor = typeof JSZip === 'function' ? JSZip : JSZip.default || JSZip;
+			const zip = new JSZipConstructor();
+			
+			for (let i = 0; i < thoughts.length; i++) {
+				const t = thoughts[i];
+				exportProgress = `Packing ${i + 1} of ${thoughts.length}...`;
+				
+				const parsed = parseFrontmatter(t.content || "");
+				
+				const data = { ...parsed.data };
+				if (!data.title) data.title = t.title || "Untitled";
+				if (!data.stage && t.meta_state) data.stage = t.meta_state;
+				
+				const fullContent = serializeFrontmatter(data, parsed.body || "");
+				const safeTitle = (data.title as string).replace(/[^a-z0-9]/gi, '-').toLowerCase() + `_${t.id.slice(0, 4)}`;
+				zip.file(`${safeTitle}.md`, fullContent);
+			}
+			
+			exportProgress = "Generating Archive...";
+			const content = await zip.generateAsync({ type: 'blob' });
+			
+			const url = URL.createObjectURL(content);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = `flought-export-${new Date().toISOString().slice(0, 10)}.zip`;
+			a.click();
+			URL.revokeObjectURL(url);
+			
+			isExporting = false;
+			showToast(`Exported ${thoughts.length} thoughts to ZIP`);
+		} catch (error: any) {
+			isExporting = false;
+			showToast(`Export failed: ${error.message || 'Unknown error'}`, "error");
+			console.error("[Flought ZIP Export Error]:", error);
+		}
+	}
+
+	async function importFromZip(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (!file) return;
+
+		if (!file.name.endsWith('.zip')) {
+			showToast("Please select a .zip file", "error");
+			return;
+		}
+		if (file.size > 50 * 1024 * 1024) {
+			showToast("ZIP file too large (max 50MB)", "error");
+			return;
+		}
+
+		try {
+			isImporting = true;
+			importProgress = "Reading ZIP...";
+			
+			const JSZipConstructor = typeof JSZip === 'function' ? JSZip : JSZip.default || JSZip;
+			const zip = new JSZipConstructor();
+			const contents = await zip.loadAsync(file);
+			
+			const { db } = await import("$lib/db");
+			const existingThoughts = await db.thoughts.filter(t => !t.is_deleted).toArray();
+			const existingTitles = new Set(existingThoughts.map(t => t.title.toLowerCase()));
+			
+			const mdFiles = Object.keys(contents.files).filter(name => name.endsWith('.md') && !contents.files[name].dir);
+			
+			parsedThoughtsCache = [];
+			let newCount = 0;
+			let dupCount = 0;
+			
+			for (let i = 0; i < mdFiles.length; i++) {
+				const filename = mdFiles[i];
+				importProgress = `Parsing ${i + 1} of ${mdFiles.length}...`;
+				const text = await contents.files[filename].async("text");
+				
+				const parsed = parseFrontmatter(text);
+				const title = (parsed.data.title as string) || filename.replace(/\.md$/, '').replace(/[-_]/g, ' ');
+				const stage = typeof parsed.data.stage === 'number' ? parsed.data.stage : 1;
+				
+				const isDup = existingTitles.has(title.toLowerCase());
+				if (isDup) dupCount++;
+				else newCount++;
+				
+				parsedThoughtsCache.push({ title, content: text, isDup, stage });
+			}
+			
+			importStats = { total: mdFiles.length, new: newCount, duplicates: dupCount };
+			isImporting = false;
+			
+			if (mdFiles.length === 0) {
+				showToast("No .md files found in ZIP", "error");
+			} else {
+				importPreviewOpen = true;
+			}
+			
+		} catch (err) {
+			isImporting = false;
+			showToast("Failed to read ZIP file", "error");
+			console.error(err);
+		}
+		target.value = '';
+	}
+
+	async function commitImport() {
+		try {
+			isImporting = true;
+			importPreviewOpen = false;
+			
+			const { db, createThought, updateThought } = await import("$lib/db");
+			const libraryId = uiStore.activeLibraryId || 'default';
+			
+			const existingThoughts = await db.thoughts.filter(t => !t.is_deleted).toArray();
+			const titleMap = new globalThis.Map<string, string>();
+			for (const t of existingThoughts) {
+				titleMap.set(t.title.toLowerCase(), t.id);
+			}
+
+			let skipped = 0;
+			let imported = 0;
+
+			for (let i = 0; i < parsedThoughtsCache.length; i++) {
+				const pt = parsedThoughtsCache[i];
+				importProgress = `Saving ${i + 1} of ${parsedThoughtsCache.length}...`;
+				
+				if (pt.isDup) {
+					if (duplicateStrategy === 'skip') {
+						skipped++;
+						continue;
+					} else if (duplicateStrategy === 'overwrite') {
+						const existingId = titleMap.get(pt.title.toLowerCase());
+						if (existingId) {
+							await updateThought(existingId, { content: pt.content, meta_state: pt.stage });
+							imported++;
+							continue;
+						}
+					}
+				}
+				
+				await createThought(libraryId, pt.title, true, pt.content);
+				imported++;
+			}
+			
+			isImporting = false;
+			showToast(`Imported ${imported} thoughts${skipped > 0 ? ` (${skipped} skipped)` : ''}`);
+			eventBus.emit({ type: 'library.switched', payload: { id: libraryId } });
+			
+		} catch (e) {
+			isImporting = false;
+			showToast("Error during import commit", "error");
+			console.error(e);
+		}
+	}
 </script>
 
 {#if uiStore.isSettingsOpen}
@@ -558,8 +733,31 @@
 						</div>
 						<button class="action-btn" onclick={exportAsJSON}>
 							<Download size={14} />
-							<span>Export Vault</span>
+							<span>Export JSON</span>
 						</button>
+					</div>
+
+					<div class="setting-item">
+						<div class="item-info">
+							<span class="item-label">Markdown ZIP Export</span>
+							<span class="item-desc">Download a backup of your thoughts as native Markdown files</span>
+						</div>
+						<button class="action-btn" onclick={exportAsZip} disabled={isExporting}>
+							<Download size={14} />
+							<span>{isExporting ? exportProgress : 'Export Vault'}</span>
+						</button>
+					</div>
+
+					<div class="setting-item">
+						<div class="item-info">
+							<span class="item-label">Markdown ZIP Import</span>
+							<span class="item-desc">Import a package of .md files to inject into Flought</span>
+						</div>
+						<button class="action-btn" onclick={() => document.getElementById('zip-import-input')?.click()} disabled={isImporting}>
+							<Download size={14} style="transform: rotate(180deg);" />
+							<span>{isImporting ? importProgress : 'Import Vault'}</span>
+						</button>
+						<input id="zip-import-input" type="file" accept=".zip" style="display: none;" onchange={importFromZip} />
 					</div>
 				</div>
 			{/if}
@@ -704,6 +902,58 @@
 		</div>
 	</main>
 </div>
+{/if}
+
+{#if importPreviewOpen}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="settings-backdrop" style="z-index: 10000; background: rgba(0,0,0,0.8);" role="presentation"></div>
+	<div class="import-preview-modal" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10001; background: var(--bg-primary); padding: 24px; border-radius: 12px; border: 1px solid var(--border-light); width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.6);" in:fly={{ y: 20 }}>
+		<h3 style="margin-bottom: 16px; font-weight: 600; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+			<Sparkles size={18} color="var(--color-brand)" /> Import Preview
+		</h3>
+		
+		<p style="margin-bottom: 16px; color: var(--text-secondary);">Found <strong>{importStats.total}</strong> markdown files within the ZIP archive.</p>
+		
+		<div style="background: var(--bg-elevated); border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+			<div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: var(--text-primary);">
+				<span><span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-forge); margin-right: 8px;"></span>New thoughts</span>
+				<strong>{importStats.new}</strong>
+			</div>
+			<div style="display: flex; justify-content: space-between; color: var(--text-secondary);">
+				<span><span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-archive); margin-right: 8px;"></span>Duplicates found</span>
+				<strong>{importStats.duplicates}</strong>
+			</div>
+		</div>
+
+		{#if importStats.duplicates > 0}
+			<div style="margin-bottom: 24px;">
+				<div style="display: block; margin-bottom: 12px; font-size: 0.9rem; color: var(--text-secondary); font-weight: 500;">How should duplicates be handled?</div>
+				<div style="display: flex; flex-direction: column; gap: 10px;">
+					<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+						<input type="radio" value="skip" bind:group={duplicateStrategy}>
+						<span><strong>Skip</strong> (Ignore the imported file)</span>
+					</label>
+					<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+						<input type="radio" value="overwrite" bind:group={duplicateStrategy}>
+						<span><strong>Overwrite</strong> (Replace existing data)</span>
+					</label>
+					<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+						<input type="radio" value="copy" bind:group={duplicateStrategy}>
+						<span><strong>Copy</strong> (Keep both, naming may conflict)</span>
+					</label>
+				</div>
+			</div>
+		{/if}
+
+		<div style="display: flex; justify-content: flex-end; gap: 12px;">
+			<button class="action-btn" style="background: var(--bg-elevated);" onclick={() => { importPreviewOpen = false; parsedThoughtsCache = []; }}>
+				Cancel
+			</button>
+			<button class="action-btn" style="background: var(--color-brand); color: white;" onclick={commitImport}>
+				Confirm Import
+			</button>
+		</div>
+	</div>
 {/if}
 
 <style>

@@ -1,4 +1,10 @@
 <script lang="ts">
+	import { Buffer } from 'buffer';
+	if (typeof window !== 'undefined') {
+		window.Buffer = window.Buffer || Buffer;
+		window.process = window.process || { env: {} };
+	}
+
 	import '../app.css';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
