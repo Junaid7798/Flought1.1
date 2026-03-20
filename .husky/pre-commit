@@ -16,13 +16,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Full build to catch build errors
-echo "🏗️  Running production build..."
-npm run build
+# Note: Full build is skipped here to keep hook fast (25s+).
+# CI will run the full build on every push/PR.
 
-if [ $? -ne 0 ]; then
-    echo "❌ Build failed. Fix errors before committing."
-    exit 1
-fi
-
-echo "✅ All checks passed!"
+echo "✅ Type check passed! (Full build will run in CI)"
