@@ -423,9 +423,7 @@
 			const { db } = await import("$lib/db");
 			const thoughts = await db.thoughts.filter(t => !t.is_deleted).toArray();
 			
-			// Handle CommonJS/ESM interop for JSZip in Vite
-			const JSZipConstructor = typeof JSZip === 'function' ? JSZip : JSZip.default || JSZip;
-			const zip = new JSZipConstructor();
+			const zip = new JSZip();
 			
 			for (let i = 0; i < thoughts.length; i++) {
 				const t = thoughts[i];
@@ -479,8 +477,7 @@
 			isImporting = true;
 			importProgress = "Reading ZIP...";
 			
-			const JSZipConstructor = typeof JSZip === 'function' ? JSZip : JSZip.default || JSZip;
-			const zip = new JSZipConstructor();
+			const zip = new JSZip();
 			const contents = await zip.loadAsync(file);
 			
 			const { db } = await import("$lib/db");
@@ -1282,7 +1279,7 @@
 	}
 
 	.color-dot.active {
-		border-color: #fff;
+		border-color: var(--border-strong);
 		transform: scale(1.1);
 	}
 

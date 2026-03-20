@@ -222,3 +222,111 @@ The following files contain migrated core logic and must NEVER be changed:
 - onwheel,onpointerdown
 
 If any task seems to require editing these files, STOP and ask the user first.
+
+---
+
+## Pre-commit Checklist
+Before committing any changes, verify:
+
+- [ ] `npm run check` passes (0 errors, 0 warnings)
+- [ ] `npm run build` succeeds
+- [ ] All interactive elements have `cursor: pointer` styling
+- [ ] New database queries have corresponding indexes in `src/lib/db.ts`
+- [ ] All database writes use `eventBus.emit()` to notify listeners
+- [ ] No direct Dexie imports outside `src/lib/db.ts`
+- [ ] No hardcoded hex colors (use CSS variables only)
+- [ ] No D3 force simulation in components (only in `src/workers/graphWorker.ts`)
+- [ ] JSZip instantiation uses direct constructor (no interop pattern)
+- [ ] Mobile rules followed: `100dvh`, safe-area-inset, 44×44px tap targets
+
+Never commit without running this checklist.
+
+---
+
+## Code Review Quick Reference
+
+### Red Flags (stop immediately)
+- Direct Dexie import in component: `import Dexie from 'dexie'`
+- Hardcoded colors: `#123456` or `rgb(0,0,0)` in component CSS
+- D3 force simulation in any file under `src/routes/` or `src/components/`
+- Missing `cursor: pointer` on clickable elements
+- JSZip constructor interop pattern
+- `addEventListener('wheel')` or `onwheel` in components
+
+### Must Verify
+- Module instantiation is direct (no CommonJS/ESM hacks)
+- All db writes followed by `eventBus.emit()`
+- New database queries have indexes (check `src/lib/db.ts`)
+- Graph rendering only in Canvas 2D (no PixiJS/SVG/HTML nodes)
+- Animation properties limited to `transform` and `opacity`
+
+### 5-Minute Review
+1. Run `npm run check` - no errors?
+2. Run `npm run build` - succeeds?
+3. Search for `cursor:` - clickable elements have pointer?
+4. Search for `from 'dexie'` - only in db.ts?
+5. Search for `new JSZip` - direct instantiation only?
+
+If any fail → block and request fixes.
+
+---
+
+## Lessons Learned (from code audits)
+
+### Always verify before claiming completion
+Run these commands after every change:
+```bash
+npm run check    # TypeScript type checking
+npm run build    # Production build
+```
+0 errors, 0 warnings = safe to proceed. Non-zero = fix before claiming done.
+
+### CommonJS/ESM interop pitfalls
+Avoid this anti-pattern:
+```typescript
+// BAD - causes TypeScript errors with some module systems
+const SomeLibConstructor = typeof SomeLib === 'function' ? SomeLib : SomeLib.default || SomeLib;
+const instance = new SomeLibConstructor();
+```
+Use direct instantiation instead:
+```typescript
+// GOOD - works across all module systems
+const instance = new SomeLib();
+```
+
+### Cursor and interaction states
+All interactive elements (buttons, tabs, clickable items) must have:
+- `cursor: pointer` for clickable items
+- Visual feedback on `:hover` and `:active` states
+- Never leave interactive elements without cursor indication
+
+---
+
+## Common TypeScript Pitfalls
+
+### Module instantiation
+**Wrong:** Using CommonJS/ESM interop patterns that break type inference
+```typescript
+// BAD - causes "Property 'default' does not exist on type 'never'"
+const LibConstructor = typeof Lib === 'function' ? Lib : Lib.default || Lib;
+const instance = new LibConstructor();
+```
+
+**Correct:** Direct instantiation
+```typescript
+// GOOD - works across all module systems
+import { Lib } from 'some-library';
+const instance = new Lib();
+```
+
+### Svelte 5 runes migration
+When upgrading dependencies or reviewing code:
+- Never use `$:` reactive statements (Svelte 4)
+- Never use `export let` for props (Svelte 4)
+- Never use `writable()` from 'svelte/store' (Svelte 4)
+- Use `$state()`, `$derived()`, `$effect()` exclusively
+
+### Dexie direct imports
+**Violation:** `import Dexie from 'dexie'` in any file under `src/routes/` or `src/components/`
+**Fix:** Import only from `src/lib/db.ts` exports
+

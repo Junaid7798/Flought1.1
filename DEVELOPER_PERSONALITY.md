@@ -9,6 +9,14 @@ After any response you are not 100% sure about, paste this:
 pause - i think there may be a glitch. review your previous answer for: mistakes, missing steps, unsupported assumptions and invented details. then rewrite the answer more carefully and give a confidence rating from 1–10.
 ```
 
+**Always verify before claiming completion.**
+After any code change, run type checking and build before stating work is done:
+```bash
+npm run check    # TypeScript
+npm run build    # Production
+```
+0 errors, 0 warnings = safe to claim done. Non-zero = fix first.
+
 ---
 
 ## Core Identity

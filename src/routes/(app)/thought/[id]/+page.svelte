@@ -116,10 +116,11 @@
 		if (!thought) return;
 		const newTitle = (e.target as HTMLElement).innerText.trim();
 		const oldTitle = prevTitle;
-		
+
 		if (newTitle && newTitle !== oldTitle) {
 			prevTitle = newTitle;
-			const count = await propagateRename(oldTitle, newTitle);
+			await updateThought(thought.id, { title: newTitle });
+			const count = await propagateRename(oldTitle, newTitle, thought.library_id);
 			if (count > 0) {
 				showToast(t('editor.linksUpdated').replace('{count}', String(count)));
 			}
@@ -249,7 +250,7 @@
 								initialBody={pageData.body}
 								searchWorker={uiStore.searchWorker} 
 							/>
-							<BacklinkFooter thoughtTitle={thought.title} />
+							<BacklinkFooter thoughtTitle={thought.title} thoughtId={thought.id} />
 						</div>
 					</div>
 				</div>

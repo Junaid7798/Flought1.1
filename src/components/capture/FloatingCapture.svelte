@@ -42,7 +42,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: #000;
+ 		color: var(--text-primary);
 		transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 		box-shadow: 
 			0 10px 40px rgba(0, 0, 0, 0.4),

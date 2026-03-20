@@ -345,7 +345,7 @@
 		<!-- Pinned Thoughts -->
 		{#if pinnedThoughts.length > 0}
 			<div class="section">
-				<button class="section-header" onclick={() => (pinnedOpen = !pinnedOpen)} type="button">
+				<button class="section-header" onclick={() => (pinnedOpen = !pinnedOpen)} aria-expanded={pinnedOpen} type="button">
 					<span class="section-label">Pinned</span>
 					<span class="section-chevron" class:open={pinnedOpen}>
 						<ChevronDown size={11} strokeWidth={2} />
@@ -381,7 +381,7 @@
 		<!-- Recent Thoughts -->
 		{#if recentThoughts.length > 0}
 			<div class="section">
-				<button class="section-header" onclick={() => (recentOpen = !recentOpen)} type="button">
+				<button class="section-header" onclick={() => (recentOpen = !recentOpen)} aria-expanded={recentOpen} type="button">
 					<span class="section-label">Recent</span>
 					<span class="section-chevron" class:open={recentOpen}>
 						<ChevronDown size={11} strokeWidth={2} />
@@ -425,7 +425,7 @@
 		<!-- Topics -->
 		{#if topics.length > 0}
 			<div class="section">
-				<button class="section-header" onclick={() => (topicsOpen = !topicsOpen)} type="button">
+				<button class="section-header" onclick={() => (topicsOpen = !topicsOpen)} aria-expanded={topicsOpen} type="button">
 					<span class="section-label-row">
 						<Hash size={11} strokeWidth={2.5} />
 						<span class="section-label">{t('topic.plural')}</span>
@@ -448,7 +448,7 @@
 		<!-- Installed Plugins -->
 		{#if enabledPlugins.length > 0}
 			<div class="section">
-				<button class="section-header" onclick={() => (pluginsOpen = !pluginsOpen)} type="button">
+				<button class="section-header" onclick={() => (pluginsOpen = !pluginsOpen)} aria-expanded={pluginsOpen} type="button">
 					<span class="section-label-row">
 						<Zap size={11} strokeWidth={2.5} />
 						<span class="section-label">Installed Plugins</span>
@@ -478,7 +478,7 @@
 
 		<!-- Templates -->
 		<div class="section">
-			<button class="section-header" onclick={() => (templatesOpen = !templatesOpen)} type="button">
+			<button class="section-header" onclick={() => (templatesOpen = !templatesOpen)} aria-expanded={templatesOpen} type="button">
 				<span class="section-label-row">
 					<LayoutGrid size={11} strokeWidth={2.5} />
 					<span class="section-label">Templates</span>

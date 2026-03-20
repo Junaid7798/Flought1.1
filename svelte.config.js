@@ -1,11 +1,9 @@
 import adapter from '@sveltejs/adapter-static';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
 	kit: {
-		// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-		// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
 		adapter: adapter({
 			pages: 'build',
 			assets: 'build',
@@ -18,4 +16,12 @@ const config = {
 	}
 };
 
+// Enable bundle analysis in production builds when BUNDLE_ANALYZE env var is set
+if (process.env.BUNDLE_ANALYZE) {
+	config.kit.vite = {
+		plugins: [visualizer({ filename: 'bundle-analysis.html', open: false })]
+	};
+}
+
 export default config;
+

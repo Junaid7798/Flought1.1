@@ -3,11 +3,12 @@
 	import { goto } from '$app/navigation';
 	import { Map as MapIcon, FileText, Zap, Settings, Search, Clock, Hash, Plus } from 'lucide-svelte';
 	import { uiStore } from '$lib/stores/uiStore.svelte';
-	import { getThoughtsByLibrary, createThought } from '$lib/db';
+	import { db } from '$lib/db';
 	import type { Thought } from '$lib/db';
 	import { Capacitor } from '@capacitor/core';
 	import { Haptics, ImpactStyle } from '@capacitor/haptics';
 	import { $t as t } from '$lib/i18n';
+	import { handleError } from '$lib/errorHandler';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -19,10 +20,10 @@
 	// ── State ─────────────────────────────────────────────────────────────────
 
 	let query = $state('');
-	let resultIds = $state<string[]>([]);
-	let thoughtMap = $state<Map<string, Thought>>(new Map());
+	let results = $state<Thought[]>([]);
 	let inputEl = $state<HTMLInputElement | null>(null);
 	let activeIndex = $state(0);
+	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	// ── Command groups ────────────────────────────────────────────────────────
 
@@ -43,36 +44,38 @@
 		{ id: 'features',label: 'Feature Guide',  icon: Hash,                        action: () => goto('/features'), group: 'actions' },
 	];
 
-	// ── Populate thought map ──────────────────────────────────────────────────
+	// ── Search with debounce + indexed query ───────────────────────────────────
 
-	let liveSubscription: { unsubscribe(): void } | null = null;
+	function handleInput() {
+		const q = query.trim();
+		if (!q) {
+			results = [];
+			return;
+		}
 
-	onMount(() => {
-		if (!libraryId) return;
-		liveSubscription = getThoughtsByLibrary(libraryId).subscribe((thoughts) => {
-			thoughtMap = new Map(thoughts.map((t) => [t.id, t]));
-		});
-	});
+		if (searchTimeout) clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => performSearch(q), 150);
+	}
 
-	onDestroy(() => {
-		liveSubscription?.unsubscribe();
-	});
-
-	// ── Worker message handler ────────────────────────────────────────────────
-
-	function handleWorkerMessage(e: MessageEvent) {
-		if (e.data?.type === 'results') {
-			resultIds = e.data.ids as string[];
+	async function performSearch(q: string) {
+		try {
+			// Indexed prefix search on title, limited to 50 results
+			const matches = await db.thoughts
+				.where('title')
+				.startsWithIgnoreCase(q)
+				.filter(t => t.library_id === libraryId && !t.is_deleted)
+				.limit(50)
+				.toArray();
+			results = matches;
 			activeIndex = 0;
+		} catch (err) {
+			handleError(err, 'CommandPalette.query', false);
+			results = [];
 		}
 	}
 
-	$effect(() => {
-		const worker = uiStore.searchWorker;
-		if (worker) {
-			worker.addEventListener('message', handleWorkerMessage);
-			return () => worker.removeEventListener('message', handleWorkerMessage);
-		}
+	onDestroy(() => {
+		if (searchTimeout) clearTimeout(searchTimeout);
 	});
 
 	// ── Focus input when opened ───────────────────────────────────────────────
@@ -82,17 +85,6 @@
 			requestAnimationFrame(() => inputEl?.focus());
 		}
 	});
-
-	// ── Search on keystroke ───────────────────────────────────────────────────
-
-	function handleInput() {
-		const q = query.trim();
-		if (!q) {
-			resultIds = [];
-			return;
-		}
-		uiStore.searchWorker?.postMessage({ type: 'search', query: q });
-	}
 
 	// ── Haptics helper ────────────────────────────────────────────────────────
 
@@ -104,226 +96,216 @@
 	// ── Keyboard navigation ──────────────────────────────────────────────────
 
 	async function handleKeydown(e: KeyboardEvent) {
-		const total = allDisplayItems.length;
+		const total = results.length;
 		if (e.key === 'Escape') {
 			close();
-		} else if (e.key === 'ArrowDown') {
+			return;
+		}
+		if (e.key === 'ArrowDown') {
 			e.preventDefault();
-			activeIndex = total ? (activeIndex + 1) % total : 0;
-			await haptic();
-		} else if (e.key === 'ArrowUp') {
+			activeIndex = (activeIndex + 1) % total;
+			haptic();
+			return;
+		}
+		if (e.key === 'ArrowUp') {
 			e.preventDefault();
-			activeIndex = total ? (activeIndex - 1 + total) % total : 0;
-			await haptic();
-		} else if (e.key === 'Enter') {
-			if (total > 0) {
-				const item = allDisplayItems[activeIndex];
-				if (item) item.action();
-			} else if (isSearching) {
-				// No matches — create a new thought with the query as title
-				createThoughtFromQuery();
+			activeIndex = (activeIndex - 1 + total) % total;
+			haptic();
+			return;
+		}
+		if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) {
+			e.preventDefault();
+			if (total > 0 && results[activeIndex]) {
+				selectThought(results[activeIndex].id);
 			}
-		} else if (e.key === 'Tab') {
-			// Focus trap: keep Tab inside the palette
+			return;
+		}
+		if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && total > 0 && results[activeIndex]) {
 			e.preventDefault();
-			inputEl?.focus();
+			openInEditor(results[activeIndex].id);
+			return;
 		}
 	}
 
-	// ── Create thought from query ────────────────────────────────────────────
-
-	async function createThoughtFromQuery() {
-		const title = query.trim();
-		if (!title || !libraryId) return;
-		const id = await createThought(libraryId, title);
-		close();
-		if (id) goto(`/thought/${id}`);
-	}
-
-	// ── Derived results ───────────────────────────────────────────────────────
-
-	const searchResults = $derived(
-		resultIds
-			.map((id) => thoughtMap.get(id))
-			.filter((t): t is Thought => !!t)
-			.slice(0, 8)
-	);
-
-	const isSearching = $derived(query.trim().length > 0);
-
-	const filteredCommands = $derived(
-		isSearching
-			? commands.filter((c) => c.label.toLowerCase().includes(query.toLowerCase()))
-			: commands
-	);
-
-	const allDisplayItems = $derived(
-		[
-			...filteredCommands.map((c) => ({
-				id: c.id,
-				label: c.label,
-				icon: c.icon,
-				shortcut: c.shortcut,
-				action: c.action,
-				type: 'command' as const,
-			})),
-			...searchResults.map((thought) => ({
-				id: thought.id,
-				label: thought.title || t('search.untitled'),
-				icon: FileText,
-				shortcut: undefined,
-				action: () => navigate(thought.id),
-				type: 'thought' as const,
-			})),
-		]
-	);
-
-	// ── Actions ───────────────────────────────────────────────────────────────
+	// ── Actions ────────────────────────────────────────────────────────────────
 
 	function close() {
 		uiStore.commandPaletteOpen = false;
-		query = '';
-		resultIds = [];
-		activeIndex = 0;
 	}
 
-	function navigate(id: string) {
-		haptic(ImpactStyle.Medium);
+	function selectThought(id: string) {
 		close();
 		goto(`/thought/${id}`);
 	}
+
+	function openInEditor(id: string) {
+		close();
+		goto(`/thought/${id}?mode=edit`);
+	}
+
+	function createNewThought() {
+		close();
+		// Prefill spark input with query
+		uiStore.sparkInputPrefill = query;
+		// Then navigate to editor or open spark
+	}
+
+	// ── Computed ───────────────────────────────────────────────────────────────
+
+	$effect(() => {
+		if (!uiStore.commandPaletteOpen) {
+			query = '';
+			results = [];
+			activeIndex = 0;
+		}
+	});
+
+	// ── Render helpers ────────────────────────────────────────────────────────
+
+	const allItems = $derived([
+		...commands.map(c => ({ type: 'command' as const, id: c.id, label: c.label, icon: c.icon, shortcut: c.shortcut, action: c.action, group: c.group })),
+		...results.map(th => ({ type: 'thought' as const, thought: th }))
+	] as Array<{ type: 'command'; id: string; label: string; icon: typeof MapIcon; shortcut?: string; action: () => void; group: string } | { type: 'thought'; thought: Thought }>);
+
+	const visibleItems = $derived(
+		!query ? allItems.filter(i => i.type === 'command') : allItems
+	);
+
+	function getItemIcon(item: any): typeof MapIcon {
+		if (item.type === 'command') return item.icon;
+		// For thoughts, could return FileText or a stage-colored icon
+		return FileText;
+	}
+
+	function getItemLabel(item: any): string {
+		if (item.type === 'command') return item.label;
+		return item.thought.title || t('search.untitled');
+	}
+
+	function getItemSubtitle(item: any): string {
+		if (item.type === 'thought') {
+			const content = item.thought.content || '';
+			return content.slice(0, 60).replace(/\n/g, ' ') + (content.length > 60 ? '...' : '');
+		}
+		return '';
+	}
+
+	function isItemActive(item: any, idx: number): boolean {
+		return idx === activeIndex;
+	}
+
+	function executeItem(item: any) {
+		if (item.type === 'command') {
+			item.action();
+		} else {
+			selectThought(item.thought.id);
+		}
+	}
 </script>
 
-{#if uiStore.commandPaletteOpen}
-	<!-- Backdrop -->
-	<div
-		class="backdrop"
-		role="presentation"
-		onclick={close}
-		onkeydown={() => {}}
-	></div>
-
-	<!-- Palette -->
-	<div
-		class="palette"
-		role="dialog"
-		aria-modal="true"
-		aria-label={t('search.ariaLabel')}
-	>
-		<div class="input-row">
-			<Search size={16} strokeWidth={1.8} class="search-icon" />
+<div class="command-palette" class:open={uiStore.commandPaletteOpen}>
+	<div class="overlay" role="button" tabindex="-1" onclick={() => uiStore.commandPaletteOpen = false} onkeydown={(e) => { if (e.key === 'Escape') uiStore.commandPaletteOpen = false; }}></div>
+	<div class="panel" role="dialog" aria-label={t('search.ariaLabel')} aria-modal="true">
+		<div class="search-bar">
+			<Search size={16} class="search-icon" />
 			<input
-				bind:this={inputEl}
 				bind:value={query}
-				class="search-input"
-				type="text"
-				placeholder={t('search.placeholder')}
-				autocomplete="off"
-				spellcheck="false"
 				oninput={handleInput}
-				onkeydown={handleKeydown}
+				bind:this={inputEl}
+				placeholder={t('search.placeholder')}
+				type="text"
+				autocomplete="off"
+				class="search-input"
 			/>
-			<kbd>Esc</kbd>
+			{#if query}
+				<button class="clear-btn" onclick={() => { query = ''; results = []; }}>✕</button>
+			{/if}
 		</div>
 
-		{#if allDisplayItems.length > 0}
-			<div class="results" role="listbox">
-				{#if filteredCommands.length > 0}
-					<div class="group-header">Navigation</div>
-					{#each filteredCommands as cmd, i}
-						{@const Icon = cmd.icon}
-						<button
-							class="result-item"
-							class:active={i === activeIndex}
-							role="option"
-							aria-selected={i === activeIndex}
-							onmouseenter={() => { activeIndex = i; haptic(); }}
-							onclick={() => { cmd.action(); haptic(ImpactStyle.Medium); }}
-							type="button"
-						>
-							<Icon size={16} strokeWidth={1.8} />
-							<span class="result-title">{cmd.label}</span>
-							{#if cmd.shortcut}
-								<kbd>{cmd.shortcut}</kbd>
-							{/if}
-						</button>
-					{/each}
-				{/if}
+		<div class="results" role="listbox">
+			{#each visibleItems as item, idx (item.type === 'thought' ? item.thought.id : item.id)}
+				{@const active = isItemActive(item, idx)}
+				{@const icon = getItemIcon(item)}
+				<div
+					class="result-item"
+					class:active
+					role="option"
+					tabindex="0"
+					aria-selected={active}
+					onclick={() => executeItem(item)}
+					onkeydown={(e) => { if (e.key === 'Enter') executeItem(item); }}
+				>
+					<div class="item-icon">
+						<icon size={18}></icon>
+					</div>
+					<div class="item-content">
+						<div class="item-label">{getItemLabel(item)}</div>
+						{#if getItemSubtitle(item)}
+							<div class="item-sub">{getItemSubtitle(item)}</div>
+						{/if}
+					</div>
+					{#if item.type === 'command' && item.shortcut}
+						<kbd>{item.shortcut}</kbd>
+					{/if}
+				</div>
+			{:else}
+				<div class="empty-state">
+					{#if query}
+						No thoughts match "{query}"
+					{:else}
+						Type to search thoughts or use commands above
+					{/if}
+				</div>
+			{/each}
+		</div>
 
-				{#if searchResults.length > 0}
-					<div class="group-header">Thoughts</div>
-					{#each searchResults as thought, i}
-						{@const idx = filteredCommands.length + i}
-						<button
-							class="result-item"
-							class:active={idx === activeIndex}
-							role="option"
-							aria-selected={idx === activeIndex}
-							onmouseenter={() => { activeIndex = idx; }}
-							onclick={() => navigate(thought.id)}
-							type="button"
-						>
-							<FileText size={16} strokeWidth={1.8} />
-							<span class="result-title">{thought.title || t('search.untitled')}</span>
-						</button>
-					{/each}
-				{/if}
-			</div>
-		{:else if isSearching}
-			<div class="empty">
-				<p class="empty-text">{t('search.empty')}</p>
-				<button class="empty-create" onclick={createThoughtFromQuery} type="button">
-					<Plus size={14} strokeWidth={2} />
-					Create "{query.trim()}"
-				</button>
-			</div>
-		{/if}
+		<div class="footer">
+			<span class="hint">↵ to open • ⌘↵ to edit • Esc to close</span>
+		</div>
 	</div>
-{/if}
+</div>
 
 <style>
-	.backdrop {
+	.command-palette {
 		position: fixed;
 		inset: 0;
-		background: var(--overlay-backdrop);
-		z-index: 200;
-		animation: fadeIn var(--transition-fast) ease forwards;
+		z-index: 1000;
+		display: none;
 	}
 
-	@keyframes fadeIn {
-		from { opacity: 0; }
-		to   { opacity: 1; }
+	.command-palette.open {
+		display: block;
 	}
 
-	.palette {
-		position: fixed;
-		top: 15vh;
+	.overlay {
+		position: absolute;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.4);
+		backdrop-filter: blur(2px);
+	}
+
+	.panel {
+		position: absolute;
+		top: 20vh;
 		left: 50%;
 		transform: translateX(-50%);
-		width: min(560px, calc(100vw - max(2rem, env(safe-area-inset-left) + env(safe-area-inset-right) + 1.5rem)));
-		background: var(--glass-overlay);
-		backdrop-filter: var(--glass-blur);
-		-webkit-backdrop-filter: var(--glass-blur);
+		width: min(640px, 90vw);
+		background: var(--bg-panel);
 		border: 1px solid var(--border-strong);
-		border-radius: var(--radius-xl);
-		z-index: 201;
+		border-radius: 16px;
+		box-shadow: var(--shadow-xl);
+		display: flex;
+		flex-direction: column;
+		max-height: 60vh;
 		overflow: hidden;
-		box-shadow: var(--shadow-lg);
-		animation: paletteIn var(--transition-base) cubic-bezier(0.22, 1, 0.36, 1) forwards;
 	}
 
-	@keyframes paletteIn {
-		from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.98); }
-		to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-	}
-
-	.input-row {
+	.search-bar {
 		display: flex;
 		align-items: center;
-		gap: var(--spacing-sm);
-		padding: 0 var(--spacing-md);
+		gap: 0.75rem;
+		padding: 0.875rem 1rem;
 		border-bottom: 1px solid var(--border);
-		min-height: 48px;
 	}
 
 	:global(.search-icon) {
@@ -333,127 +315,107 @@
 
 	.search-input {
 		flex: 1;
-		background: transparent;
+		background: none;
 		border: none;
-		color: var(--text-primary);
-		font-size: 0.9375rem;
-		font-family: inherit;
 		outline: none;
-		padding: var(--spacing-sm) 0;
+		color: var(--text-primary);
+		font-size: 1.125rem;
+		font-family: inherit;
 	}
 
 	.search-input::placeholder {
 		color: var(--text-muted);
 	}
 
-	.results {
-		padding: var(--spacing-xs) 0;
-		max-height: 360px;
-		overflow-y: auto;
+	.clear-btn {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 4px;
+		border-radius: 4px;
 	}
 
-	.group-header {
-		font-size: 0.625rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--text-muted);
-		padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs);
+	.clear-btn:hover {
+		color: var(--text-secondary);
+		background: var(--bg-hover);
+	}
+
+	.results {
+		flex: 1;
+		overflow-y: auto;
+		padding: 0.5rem;
 	}
 
 	.result-item {
 		display: flex;
 		align-items: center;
-		gap: var(--spacing-sm);
-		padding: 10px var(--spacing-md);
+		gap: 0.75rem;
+		padding: 0.625rem 0.75rem;
+		border-radius: 8px;
 		cursor: pointer;
-		min-height: 48px;
-		width: 100%;
-		background: none;
-		border: none;
-		border-radius: var(--radius-md);
-		margin: 0 var(--spacing-xs);
-		width: calc(100% - var(--spacing-sm));
-		box-sizing: border-box;
-		color: var(--text-secondary);
-		font-family: inherit;
-		text-align: left;
-		transition: background var(--transition-fast), color var(--transition-fast);
+		margin-bottom: 2px;
 	}
 
-	.result-item:hover {
+	.result-item:hover,
+	.result-item.active {
 		background: var(--bg-hover);
 	}
 
-	.result-item.active {
-		background: var(--bg-elevated);
-		color: var(--text-primary);
-	}
-
-	.result-item :global(svg) {
+	.item-icon {
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--bg-surface);
+		border-radius: 8px;
 		color: var(--text-muted);
 		flex-shrink: 0;
 	}
 
-	.result-item.active :global(svg) {
-		color: var(--color-brand);
+	.item-content {
+		flex: 1;
+		min-width: 0;
 	}
 
-	.result-title {
-		flex: 1;
-		font-size: 0.875rem;
+	.item-label {
+		font-size: 0.9375rem;
+		font-weight: 500;
+		color: var(--text-primary);
+	}
+
+	.item-sub {
+		font-size: 0.8125rem;
+		color: var(--text-muted);
+		margin-top: 2px;
+		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
-	.empty {
-		padding: var(--spacing-lg) var(--spacing-md);
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: var(--spacing-sm);
+	.result-item.active {
+		background: var(--brand-tint);
 	}
 
-	.empty-text {
-		margin: 0;
-		font-size: 0.875rem;
+	.result-item.active .item-label {
+		color: var(--text-primary);
+	}
+
+	.empty-state {
+		padding: 3rem 1rem;
+		text-align: center;
 		color: var(--text-muted);
+	}
+
+	.footer {
+		padding: 0.75rem 1rem;
+		border-top: 1px solid var(--border);
 		text-align: center;
 	}
 
-	.empty-create {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		background: var(--brand-tint);
-		color: var(--color-brand);
-		border: 1px solid rgba(34, 211, 238, 0.2);
-		border-radius: var(--radius-md);
-		padding: 6px 12px;
-		font-size: 0.8125rem;
-		font-weight: 600;
-		font-family: inherit;
-		cursor: pointer;
-		transition: background var(--transition-fast), border-color var(--transition-fast);
-	}
-
-	.empty-create:hover {
-		background: rgba(34, 211, 238, 0.15);
-		border-color: rgba(34, 211, 238, 0.35);
-	}
-
-	/* ── Mobile ─────────────────────────────────────────────────────────── */
-
-	@media (max-width: 767px) {
-		.palette {
-			top: max(2rem, env(safe-area-inset-top) + 0.5rem);
-			width: calc(100vw - 1rem);
-			border-radius: var(--radius-lg);
-		}
-
-		.results {
-			max-height: calc(100dvh - 12rem);
-		}
+	.hint {
+		font-size: 0.75rem;
+		color: var(--text-muted);
 	}
 </style>

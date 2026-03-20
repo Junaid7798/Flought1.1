@@ -48,8 +48,23 @@ function buildIndex(thoughts: ThoughtEntry[]): Document<any> {
 
 // ── Message handler ────────────────────────────────────────────────────────
 
+const VALID_MESSAGE_TYPES = new Set(['index', 'update', 'search']);
+
+function isValidMessage(msg: unknown): msg is InMessage {
+  if (!msg || typeof msg !== 'object') return false;
+  const m = msg as Record<string, unknown>;
+  if (typeof m.type !== 'string' || !VALID_MESSAGE_TYPES.has(m.type)) return false;
+  if (m.type === 'update' && (!m.thought || typeof m.thought !== 'object')) return false;
+  return true;
+}
+
 self.onmessage = (e: MessageEvent<InMessage>) => {
   const msg = e.data;
+
+  if (!isValidMessage(msg)) {
+    console.warn('[searchWorker] Invalid message:', msg);
+    return;
+  }
 
   switch (msg.type) {
     case 'index': {

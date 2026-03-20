@@ -162,13 +162,22 @@ class FloughtDB extends Dexie {
 			userSettings:'id',
 			thoughts:    'id, library_id, meta_state, topic, created_at, updated_at, is_deleted',
 			edges:       'id, library_id, source_id, target_id, is_deleted',
-		}).upgrade((tx) => {
-			return tx.table('userSettings').toCollection().modify((s) => {
-				if (s.right_sidebar_width === undefined) s.right_sidebar_width = 280;
-			});
+ 		}).upgrade((tx) => {
+ 			return tx.table('userSettings').toCollection().modify((s) => {
+ 				if (s.right_sidebar_width === undefined) s.right_sidebar_width = 280;
+ 			});
+ 		});
+
+		// v6 — add title index to thoughts for fast command palette search
+		this.version(6).stores({
+			libraries:   'id, name, created_at, is_deleted',
+			userProfile: 'id',
+			userSettings:'id',
+			thoughts:    'id, library_id, meta_state, topic, created_at, updated_at, is_deleted, title',
+			edges:       'id, library_id, source_id, target_id, is_deleted',
 		});
-	}
-}
+ 	}
+ }
 
 export const db = new FloughtDB();
 
@@ -177,26 +186,31 @@ export const db = new FloughtDB();
 export async function createThought(libraryId: string, title: string, is_triaged = true, content = ''): Promise<string> {
 	const now = new Date().toISOString();
 	const id = generateId();
-	await db.thoughts.add({
-		id,
-		library_id: libraryId,
-		title,
-		content,
-		meta_state: 1,
-		topic: '',
-		x_pos: 0,
-		y_pos: 0,
-		created_at: now,
-		updated_at: now,
-		is_deleted: false,
-		telemetry: [],
-		aliases:        [],
-		last_viewed_at: 0,
-		word_count:     title.split(/\s+/).filter(Boolean).length,
-		is_triaged,
-	});
-	eventBus.emit({ type: 'thought.created', payload: { id } });
-	return id;
+	try {
+		await db.thoughts.add({
+			id,
+			library_id: libraryId,
+			title,
+			content,
+			meta_state: 1,
+			topic: '',
+			x_pos: 0,
+			y_pos: 0,
+			created_at: now,
+			updated_at: now,
+			is_deleted: false,
+			telemetry: [],
+			aliases:        [],
+			last_viewed_at: 0,
+			word_count:     title.split(/\s+/).filter(Boolean).length,
+			is_triaged,
+		});
+		eventBus.emit({ type: 'thought.created', payload: { id } });
+		return id;
+	} catch (err) {
+		console.error('[db] createThought failed:', err);
+		throw err;
+	}
 }
 
 export async function updateThought(
@@ -235,6 +249,20 @@ export async function softDeleteThought(id: string): Promise<void> {
 	].slice(-50);
 
 	await db.thoughts.update(id, { is_deleted: true, updated_at: now, telemetry });
+
+	const connectedEdges = await db.edges
+		.where('source_id')
+		.equals(id)
+		.filter((e) => !e.is_deleted)
+		.toArray();
+	const targetEdges = await db.edges
+		.where('target_id')
+		.equals(id)
+		.filter((e) => !e.is_deleted)
+		.toArray();
+	const allEdges = [...connectedEdges, ...targetEdges];
+	await Promise.all(allEdges.map((e) => softDeleteEdge(e.id)));
+
 	eventBus.emit({ type: 'thought.updated', payload: { id } });
 }
 
@@ -261,6 +289,17 @@ export async function createEdge(
 	linkType = 'wikilink'
 ): Promise<string> {
 	const id = generateId();
+
+	const existing = await db.edges
+		.where('library_id')
+		.equals(libraryId)
+		.filter((e) => !e.is_deleted && e.source_id === sourceId && e.target_id === targetId)
+		.first();
+	if (existing) {
+		console.warn('[db] createEdge: edge already exists', { sourceId, targetId });
+		return existing.id;
+	}
+
 	await db.edges.add({
 		id,
 		library_id: libraryId,
@@ -324,6 +363,21 @@ export async function rebuildEdgesForThought(
 	const thought = await db.thoughts.get(thoughtId);
 	if (!thought) return;
 
+	// Validate and sanitize input titles
+	const validTitles = newLinkedTitles.filter(
+		(title): title is string =>
+			typeof title === 'string' &&
+			title.length > 0 &&
+			title.length <= 200 &&
+			!/^\[/.test(title) // reject titles starting with [
+	);
+	if (validTitles.length !== newLinkedTitles.length) {
+		console.warn('[db] rebuildEdgesForThought: filtered invalid titles', {
+			input: newLinkedTitles,
+			output: validTitles,
+		});
+	}
+
 	// Resolve titles → thought IDs in this library (non-deleted)
 	const candidates = await db.thoughts
 		.where('library_id')
@@ -341,7 +395,7 @@ export async function rebuildEdgesForThought(
 		}
 	}
 	const newTargetIds = new Set(
-		newLinkedTitles
+		validTitles
 			.map((title) => titleToId.get(title.toLowerCase()))
 			.filter((id): id is string => id !== undefined)
 	);
@@ -462,6 +516,10 @@ export async function markOnboardingComplete(): Promise<void> {
 // without going through login or onboarding. Only called when
 // PUBLIC_DEV_BYPASS=true in .env (which is never committed).
 export async function devSeedBypass(): Promise<string> {
+	if (import.meta.env.PROD) {
+		throw new Error('DEV BYPASS should not be called in production');
+	}
+
 	const existing = await db.userProfile.get(PROFILE_ID);
 	if (!existing) {
 		await db.userProfile.put({
@@ -550,7 +608,7 @@ export async function applyBlueprint(useCase: string): Promise<void> {
 				created_at: now,
 				updated_at: now,
 				is_deleted: false,
-				telemetry: [],
+				telemetry: [{ event: 'created', ts: now }],
 				aliases:        [],
 				last_viewed_at: 0,
 				word_count:     seed.title.split(/\s+/).filter(Boolean).length,
@@ -572,16 +630,19 @@ export async function updateLastViewed(id: string): Promise<void> {
 }
 
 export async function getBacklinksForThought(title: string): Promise<Thought[]> {
-	const pattern = '[[' + title + ']]';
+	const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const pattern = new RegExp(`\\[\\[${escapedTitle}\\]\\]`, 'i');
 	return db.thoughts
-		.filter((t) => !t.is_deleted && t.content.includes(pattern))
+		.filter((t) => !t.is_deleted && pattern.test(t.content))
 		.toArray();
 }
 
 export async function getThoughtStatesAndAliases(): Promise<
 	{ id: string; title: string; meta_state: number; aliases: string[] }[]
 > {
-	const thoughts = await db.thoughts.filter((t) => !t.is_deleted).toArray();
+	const thoughts = await db.thoughts
+		.filter((t) => !t.is_deleted)
+		.toArray();
 	return thoughts.map((t) => ({
 		id:         t.id,
 		title:      t.title,
@@ -623,20 +684,32 @@ export async function removeAlias(thoughtId: string, alias: string): Promise<voi
 }
 
 /**
- * Global link propogation on rename.
+ * Global link propagation on rename.
  * Finds all thoughts containing [[Old Title]] and updates to [[New Title]].
+ * If libraryId is provided, only updates thoughts in that library.
  */
-export async function propagateRename(oldTitle: string, newTitle: string): Promise<number> {
-	const oldPattern = '[[' + oldTitle + ']]';
-	const newPattern = '[[' + newTitle + ']]';
+export async function propagateRename(
+	oldTitle: string,
+	newTitle: string,
+	libraryId?: string
+): Promise<number> {
+	const escapedOld = oldTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const escapedNew = newTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const pattern = new RegExp(`\\[\\[${escapedOld}\\]\\]`, 'gi');
 
-	const relatedThoughts = await db.thoughts
-		.filter((t) => !t.is_deleted && t.content.includes(oldPattern))
-		.toArray();
+	let query = db.thoughts.filter((t) => !t.is_deleted && pattern.test(t.content));
+	if (libraryId) {
+		query = db.thoughts
+			.where('library_id')
+			.equals(libraryId)
+			.filter((t) => !t.is_deleted && pattern.test(t.content));
+	}
+
+	const relatedThoughts = await query.toArray();
 
 	let count = 0;
 	for (const t of relatedThoughts) {
-		const newContent = t.content.split(oldPattern).join(newPattern);
+		const newContent = t.content.replace(pattern, `[[${newTitle}]]`);
 		if (newContent !== t.content) {
 			await updateThought(t.id, { content: newContent });
 			count++;

@@ -298,7 +298,7 @@
 		justify-content: center;
 		gap: 8px;
 		background: var(--color-brand);
-		color: #000;
+		color: var(--text-primary);
 		border: none;
 		border-radius: 10px;
 		padding: 0.75rem 1.25rem;

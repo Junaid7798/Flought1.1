@@ -15,6 +15,7 @@
 		type UserSettings,
 	} from '$lib/db';
 	import { eventBus } from '$lib/eventBus';
+	import { handleError } from '$lib/errorHandler';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
@@ -46,14 +47,15 @@
 
 	// ── Formatted date ────────────────────────────────────────────────────────
 
-	const createdFormatted = $derived(() => {
-		if (!thought) return '';
-		return new Intl.DateTimeFormat(undefined, {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
-		}).format(new Date(thought.created_at));
-	});
+	const createdFormatted = $derived(
+		!thought
+			? ''
+			: new Intl.DateTimeFormat(undefined, {
+					year: 'numeric',
+					month: 'short',
+					day: 'numeric',
+				}).format(new Date(thought.created_at))
+	);
 
 	// ── Bootstrap ─────────────────────────────────────────────────────────────
 
@@ -81,15 +83,20 @@
 	}
 
 	async function handleCustomKeyChange(key: string, value: string) {
-		if (!thought) return;
-		const updatedData = { ...yamlData, [key]: value };
-		yamlData = updatedData;
+		if (!thought?.content) return; // guard — nothing to parse
 
-		// Re-serialize into content
-		const parsed = parseFrontmatter(thought.content);
-		const newContent = serializeFrontmatter(updatedData, parsed.body);
-		thought = { ...thought, content: newContent };
-		await updateThought(thoughtId, { content: newContent });
+		try {
+			const updatedData = { ...yamlData, [key]: value };
+			yamlData = updatedData;
+
+			// Re-serialize into content
+			const parsed = parseFrontmatter(thought.content);
+			const newContent = serializeFrontmatter(updatedData, parsed.body);
+			thought = { ...thought, content: newContent };
+			await updateThought(thoughtId, { content: newContent });
+		} catch (err) {
+			handleError(err, 'FrontmatterMask.parse', false);
+		}
 	}
 
 	// ── Alias handlers ────────────────────────────────────────────────────────
@@ -134,7 +141,7 @@
 		<!-- ── Created date (read-only) ────────────────────────────────────── -->
 		<div class="row">
 			<span class="label">{t('editor.created')}</span>
-			<span class="value-static">{createdFormatted()}</span>
+			<span class="value-static">{createdFormatted}</span>
 		</div>
 
 		<!-- ── Custom YAML keys ─────────────────────────────────────────────── -->

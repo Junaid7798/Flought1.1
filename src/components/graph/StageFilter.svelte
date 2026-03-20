@@ -59,8 +59,8 @@
 
 	.stage-dot.active {
 		background: var(--accent);
-		color: #000;
-		border-color: rgba(0,0,0,0.1);
+		color: var(--text-primary);
+		border-color: rgba(255,255,255,0.1);
 		font-weight: 700;
 	}
 
@@ -74,7 +74,7 @@
 	}
 
 	.stage-dot.active .dot {
-		background: #000;
+		background: var(--bg-deep);
 		box-shadow: none;
 		transform: scale(0.8);
 	}

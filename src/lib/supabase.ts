@@ -2,6 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { dev } from '$app/environment';
 
+// Validate environment variables at module load
+if (!PUBLIC_SUPABASE_URL || !PUBLIC_SUPABASE_ANON_KEY) {
+	throw new Error('FATAL: Missing Supabase environment variables. Check your .env file.');
+}
+
 export const supabase = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY);
 
 /**

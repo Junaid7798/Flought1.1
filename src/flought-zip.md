@@ -157,15 +157,6 @@
 - Requires OAuth authentication setup
 - Auto-sync vault to a cloud folder on a schedule
 
-### 4.4 Import from URL
-- Allow importing a ZIP directly from a public URL
-- User pastes a link, Flought fetches and processes it
-- Useful for shared vaults or templates
-
-### 4.5 Vault Templates
-- Pre-packaged ZIP files that users can import as starter vaults
-- Example: *"Import a Zettelkasten starter template"*
-- Ship a few built-in templates inside the app
 
 ---
 

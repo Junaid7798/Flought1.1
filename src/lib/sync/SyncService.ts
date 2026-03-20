@@ -1,4 +1,5 @@
 import type { Thought, Edge } from '$lib/db';
+import { handleError } from '$lib/errorHandler';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,16 +39,25 @@ export class SyncService {
 	}
 
 	async push(payload: SyncPayload): Promise<SyncResult> {
-		if (!this.adapter) return { success: false, error: 'No sync adapter configured' };
+		if (!this.adapter) {
+			const err = new Error('No sync adapter configured');
+			handleError(err, 'sync.push', true);
+			return { success: false, error: err.message };
+		}
 
 		if (!this.adapter.isConnected()) {
 			this.status = 'offline';
-			return { success: false, error: 'Not connected' };
+			const err = new Error('Not connected');
+			handleError(err, 'sync.push', true);
+			return { success: false, error: err.message };
 		}
 
 		this.status = 'syncing';
 		const result = await this.adapter.push(payload);
 		this.status = result.success ? 'synced' : 'error';
+		if (!result.success) {
+			handleError(new Error(result.error ?? 'Sync push failed'), 'sync.push', true);
+		}
 		return result;
 	}
 
@@ -64,7 +74,8 @@ export class SyncService {
 			const payload = await this.adapter.pull();
 			this.status = 'synced';
 			return payload;
-		} catch {
+		} catch (err) {
+			handleError(err, 'sync.pull', true);
 			this.status = 'error';
 			return null;
 		}

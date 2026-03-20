@@ -147,8 +147,7 @@
 		const coords = view.coordsAtPos(pos);
 		if (!coords) return;
 		const rect = containerEl.getBoundingClientRect();
-		const scrollRect = view.scrollDOM.getBoundingClientRect();
-		
+
 		slashX = coords.left - rect.left;
 		slashY = coords.bottom - rect.top + 4;
 		slashFrom = pos;
@@ -257,7 +256,7 @@
 						}
 						const content = view?.state.doc.toString() ?? '';
 						flushContent(content);
-						flushEdges(content);
+						flushEdges(content).catch(err => console.error('[ThoughtEditor] flushEdges failed:', err));
 						return false;
 					},
 				}),
@@ -300,7 +299,7 @@
 		const content = view?.state.doc.toString() ?? '';
 		if (content && view) {
 			flushContent(content);
-			flushEdges(content);
+			flushEdges(content).catch(err => console.error('[ThoughtEditor] flushEdges failed:', err));
 		}
 		view?.destroy();
 		view = null;

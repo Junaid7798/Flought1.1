@@ -1,15 +1,16 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { PIPELINE_STATES } from '$lib/config';
-	import { getBacklinksForThought, type Thought } from '$lib/db';
+	import { db, getBacklinksForThought, updateTraversalCount, type Thought } from '$lib/db';
 	import { $t as t } from '$lib/i18n';
 
 	// ── Props ─────────────────────────────────────────────────────────────────
 
 	interface Props {
 		thoughtTitle: string;
+		thoughtId: string;
 	}
-	let { thoughtTitle }: Props = $props();
+	let { thoughtTitle, thoughtId }: Props = $props();
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,20 @@
 	function getStage(metaState: number) {
 		return PIPELINE_STATES.find((s) => s.id === metaState) ?? PIPELINE_STATES[0];
 	}
+
+	// ── Navigation with edge traversal tracking ──────────────────────────────
+
+	async function handleBacklinkClick(targetId: string) {
+		const edge = await db.edges
+			.where('source_id')
+			.equals(thoughtId)
+			.filter((e) => !e.is_deleted && e.target_id === targetId)
+			.first();
+		if (edge) {
+			await updateTraversalCount(edge.id);
+		}
+		goto(`/thought/${targetId}`);
+	}
 </script>
 
 {#if backlinks.length > 0}
@@ -40,7 +55,7 @@
 					class="backlink-item"
 					type="button"
 					data-thought-id={link.id}
-					onclick={() => goto(`/thought/${link.id}`)}
+					onclick={() => handleBacklinkClick(link.id)}
 				>
 					<span class="backlink-title">{link.title}</span>
 					<span

@@ -7,6 +7,8 @@ export const PIPELINE_STATES = [
   { id: 4, colour: '#6B7280', cssVar: '--color-archive' },
 ] as const;
 
+export const DEFAULT_GHOST_COLOR = '#475569' as const;
+
 export type PipelineStateId = (typeof PIPELINE_STATES)[number]['id'];
 
 export const ANIMATION_CONFIG = {

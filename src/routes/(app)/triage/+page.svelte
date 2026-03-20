@@ -5,41 +5,46 @@
 	import { uiStore } from '$lib/stores/uiStore.svelte';
 	import { $t as t } from '$lib/i18n';
 	import { goto } from '$app/navigation';
-	import { 
-		Inbox, 
-		Clock, 
-		CheckCircle2, 
-		Trash2, 
-		ExternalLink, 
+	import {
+		Inbox,
+		Clock,
+		CheckCircle2,
+		Trash2,
+		ExternalLink,
 		Brain,
 		Search,
 		ChevronRight,
 		Calendar
 	} from 'lucide-svelte';
 	import { PIPELINE_STATES } from '$lib/config';
+	import { handleError } from '$lib/errorHandler';
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
 	let activeTab = $state<'untriaged' | 'stale'>('untriaged');
-	
-	const untriagedThoughts = liveQuery(() => 
-		db.thoughts
-			.filter(t => !t.is_deleted && t.is_triaged === false)
-			.toArray()
-	);
 
 	const STALE_THRESHOLD = 7 * 24 * 60 * 60 * 1000; // 7 days
-	const staleThoughts = liveQuery(() => 
-		db.thoughts
-			.filter(t => {
-				if (t.is_deleted || t.is_triaged === false) return false;
-				const lastAction = t.last_viewed_at || new Date(t.updated_at).getTime();
-				return (Date.now() - lastAction) > STALE_THRESHOLD;
-			})
-			.toArray()
-	);
 
-	const thoughts = $derived(activeTab === 'untriaged' ? ($untriagedThoughts ?? []) : ($staleThoughts ?? []));
+	const triagedData = liveQuery(async () => {
+		try {
+			const allThoughts = await db.thoughts
+				.filter(t => !t.is_deleted)
+				.toArray();
+			return {
+				untriaged: allThoughts.filter(t => t.is_triaged === false),
+				stale: allThoughts.filter(t => {
+					if (t.is_triaged === false) return false;
+					const lastAction = t.last_viewed_at || new Date(t.updated_at).getTime();
+					return (Date.now() - lastAction) > STALE_THRESHOLD;
+				}),
+			};
+		} catch (err) {
+			handleError(err, 'triage.liveQuery', false);
+			return { untriaged: [] as Thought[], stale: [] as Thought[] };
+		}
+	});
+
+	const thoughts = $derived(activeTab === 'untriaged' ? ($triagedData?.untriaged ?? []) : ($triagedData?.stale ?? []));
 
 	// ── Actions ───────────────────────────────────────────────────────────────
 
@@ -98,8 +103,8 @@
 				<div class="tab-inner">
 					<Inbox size={16} />
 					<span>{t('triage.untriaged.heading')}</span>
-					{#if $untriagedThoughts?.length}
-						<span class="count">{$untriagedThoughts.length}</span>
+					{#if $triagedData?.untriaged?.length}
+						<span class="count">{$triagedData.untriaged.length}</span>
 					{/if}
 				</div>
 				{#if activeTab === 'untriaged'}<div class="tab-indicator"></div>{/if}
@@ -113,8 +118,8 @@
 				<div class="tab-inner">
 					<Clock size={16} />
 					<span>{t('triage.stale.heading')}</span>
-					{#if $staleThoughts?.length}
-						<span class="count">{$staleThoughts.length}</span>
+					{#if $triagedData?.stale?.length}
+						<span class="count">{$triagedData.stale.length}</span>
 					{/if}
 				</div>
 				{#if activeTab === 'stale'}<div class="tab-indicator"></div>{/if}

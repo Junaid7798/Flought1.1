@@ -206,8 +206,25 @@ function extractWikilinks(content: string): string[] {
 
 // ── Message handler ──────────────────────────────────────────────────────────
 
+const VALID_MESSAGE_TYPES = new Set([
+  'simulate', 'drag', 'dragEnd', 'addNode',
+  'focusStage', 'clearFocusStage', 'updateForces', 'settle'
+]);
+
+function isValidMessage(msg: unknown): msg is InMessage {
+  if (!msg || typeof msg !== 'object') return false;
+  const m = msg as Record<string, unknown>;
+  if (typeof m.type !== 'string' || !VALID_MESSAGE_TYPES.has(m.type)) return false;
+  return true;
+}
+
 self.onmessage = (e: MessageEvent<InMessage>) => {
   const msg = e.data;
+
+  if (!isValidMessage(msg)) {
+    console.warn('[graphWorker] Invalid message:', msg);
+    return;
+  }
 
   switch (msg.type) {
     case 'simulate': {
